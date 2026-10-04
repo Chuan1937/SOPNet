@@ -9,7 +9,7 @@ P always sitting at the same position.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Tuple
 
 import h5py
 import numpy as np

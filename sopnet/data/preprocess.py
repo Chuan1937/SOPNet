@@ -35,9 +35,7 @@ class PreprocessConfig:
         if self._sos is None:
             nyquist = 0.5 * self.fs
             if not 0 < self.lowcut < self.highcut < nyquist:
-                raise ValueError(
-                    f"Invalid band {self.lowcut}-{self.highcut} Hz for fs={self.fs} Hz"
-                )
+                raise ValueError(f"Invalid band {self.lowcut}-{self.highcut} Hz for fs={self.fs} Hz")
             self._sos = signal.butter(
                 self.order,
                 [self.lowcut / nyquist, self.highcut / nyquist],

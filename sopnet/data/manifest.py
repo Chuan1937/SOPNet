@@ -16,9 +16,9 @@ import pandas as pd
 
 from sopnet.data.canonical import (
     DOWN,
+    SCSN_LABELS,
     UNKNOWN,
     UP,
-    SCSN_LABELS,
     map_raw_label,
 )
 
@@ -192,9 +192,7 @@ def scan_scsn(data_root: Path, limit: Optional[int] = None, seed: int = 0) -> pd
     with h5py.File(Path(data_root) / source_path, "r") as handle:
         labels = np.asarray(handle["Y"][:])
         events = np.asarray(handle["evids"][:])
-    lut = np.array(
-        [SCSN_LABELS[0], SCSN_LABELS[1], SCSN_LABELS[2]], dtype=np.int8
-    )
+    lut = np.array([SCSN_LABELS[0], SCSN_LABELS[1], SCSN_LABELS[2]], dtype=np.int8)
     frame = pd.DataFrame(
         {
             "trace_id": "",
@@ -244,8 +242,7 @@ def scan_txed(data_root: Path, limit: Optional[int] = None, seed: int = 0) -> pd
         + frame["source_depth_km"].astype(str)
     )
     frame["event_key"] = [
-        _event_from_trace_name(tn, fb)
-        for tn, fb in zip(frame["trace_name_original"], fallback)
+        _event_from_trace_name(tn, fb) for tn, fb in zip(frame["trace_name_original"], fallback)
     ]
     frame = pd.DataFrame(
         {
@@ -333,22 +330,16 @@ def scan_diting(
         csv_path = directory / f"DiTing330km_part_{part}.csv"
         if not csv_path.exists():
             continue
-        part_frame = pd.read_csv(
-            csv_path, usecols=["key", "p_pick", "p_motion", "ev_id"], low_memory=False
-        )
+        part_frame = pd.read_csv(csv_path, usecols=["key", "p_pick", "p_motion", "ev_id"], low_memory=False)
         part_frame = part_frame[part_frame["p_pick"].notna() & part_frame["key"].notna()].copy()
         part_frame = pd.DataFrame(
             {
-                "trace_id": [
-                    f"{part}:{diting_hdf5_key(key)}" for key in part_frame["key"].values
-                ],
+                "trace_id": [f"{part}:{diting_hdf5_key(key)}" for key in part_frame["key"].values],
                 "row_index": np.arange(len(part_frame), dtype=np.int32),
                 "p_pick": part_frame["p_pick"].astype(float).values,
                 "raw_label": part_frame["p_motion"].fillna("unknown").astype(str).values,
                 "canonical_label": _canonical_from_map(part_frame["p_motion"].values, "diting"),
-                "event_key": [
-                    f"diting:{part}:{event}" for event in part_frame["ev_id"].values
-                ],
+                "event_key": [f"diting:{part}:{event}" for event in part_frame["ev_id"].values],
                 "split_native": pd.NA,
             }
         )
@@ -386,9 +377,7 @@ def build_manifest(
     unknown = set(names) - set(SCANNERS)
     if unknown:
         raise ValueError(f"Unknown datasets: {sorted(unknown)}; known: {SOURCES}")
-    frames = [
-        SCANNERS[name](Path(data_root), limit=limit_per_source, seed=seed) for name in names
-    ]
+    frames = [SCANNERS[name](Path(data_root), limit=limit_per_source, seed=seed) for name in names]
     manifest = pd.concat(frames, ignore_index=True)
     for column in ("source", "source_path", "component"):
         manifest[column] = manifest[column].astype("category")

@@ -28,14 +28,7 @@ def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
     accuracy = (tp + tn) / total if total else 0.0
-    denominator = float(
-        np.sqrt(
-            (float(tp + fp))
-            * float(tp + fn)
-            * float(tn + fp)
-            * float(tn + fn)
-        )
-    )
+    denominator = float(np.sqrt((float(tp + fp)) * float(tp + fn) * float(tn + fp) * float(tn + fn)))
     mcc = (float(tp) * float(tn) - float(fp) * float(fn)) / denominator if denominator else 0.0
     return {
         "accuracy": accuracy,

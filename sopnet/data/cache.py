@@ -243,9 +243,7 @@ def build_cache(
     positions = np.flatnonzero(success)
     # ``frame`` is sorted by read locality; restore the original manifest order so
     # that row k of the output corresponds to ``manifest_index == k``.
-    manifest_out = (
-        frame.sort_values("_orig", kind="stable").drop(columns="_orig").reset_index(drop=True)
-    )
+    manifest_out = frame.sort_values("_orig", kind="stable").drop(columns="_orig").reset_index(drop=True)
     manifest_out["waveform_hash"] = hashes[positions]
     manifest_out = assign_splits(manifest_out, seed=config.seed)
 

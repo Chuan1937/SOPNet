@@ -119,6 +119,12 @@ def main() -> None:
     parser.add_argument("--lambda-inv", type=float, default=None)
     parser.add_argument("--no-amp", action="store_true")
     parser.add_argument("--examples", type=int, default=12)
+    parser.add_argument(
+        "--auto-batch",
+        action="store_true",
+        help="benchmark candidate batch sizes and pick the highest-throughput one",
+    )
+    parser.add_argument("--batch-candidates", type=int, nargs="+", default=[1024, 1536, 2048])
     args = parser.parse_args()
 
     config = resolve_config(args)
@@ -140,6 +146,25 @@ def main() -> None:
     logger.info("train samples=%d, val samples=%d", len(train_dataset), len(val_dataset))
     if len(train_dataset) == 0 or len(val_dataset) == 0:
         raise SystemExit("empty train/val split; build the cache first")
+
+    if args.auto_batch:
+        import torch
+
+        from sopnet.training.benchmark import benchmark_batch_sizes
+
+        device = torch.device(config["train"].get("device", "cuda") if torch.cuda.is_available() else "cpu")
+        selection = benchmark_batch_sizes(
+            model,
+            train_dataset,
+            device,
+            candidates=args.batch_candidates,
+            num_workers=int(config["train"].get("num_workers", 8)),
+            amp=bool(config["train"].get("amp", True)),
+            seed=int(config["train"].get("seed", 36)),
+            logger=logger,
+            output=output_dir / "batch_benchmark.json",
+        )
+        config["train"]["batch_size"] = selection["batch_size"]
 
     trainer = Trainer(
         model,

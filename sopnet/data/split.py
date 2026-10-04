@@ -114,9 +114,7 @@ def assign_splits(
 
     event_splits = np.array([root_split[int(root)] for root in roots], dtype=np.int8)
     row_splits = event_splits[event_codes]
-    frame["split"] = pd.Categorical(
-        [SPLIT_NAMES[code] for code in row_splits], categories=SPLIT_NAMES
-    )
+    frame["split"] = pd.Categorical([SPLIT_NAMES[code] for code in row_splits], categories=SPLIT_NAMES)
     return frame
 
 
