@@ -5,20 +5,37 @@ from sopnet.training.benchmark import select_best_batch
 
 def _results():
     return [
-        {"batch_size": 512, "samples_per_s": 4000.0, "peak_vram_gb": 2.0, "status": "ok"},
-        {"batch_size": 1024, "samples_per_s": 5200.0, "peak_vram_gb": 3.5, "status": "ok"},
-        {"batch_size": 1536, "samples_per_s": 5100.0, "peak_vram_gb": 5.8, "status": "ok"},
-        {"batch_size": 2048, "status": "oom"},
+        {
+            "batch_size": 1024,
+            "samples_per_s": 6800.0,
+            "peak_vram_gb": 2.35,
+            "gpu_utilization": 60.0,
+            "status": "ok",
+        },
+        {
+            "batch_size": 1536,
+            "samples_per_s": 5870.0,
+            "peak_vram_gb": 3.49,
+            "gpu_utilization": 84.0,
+            "status": "ok",
+        },
+        {
+            "batch_size": 2048,
+            "samples_per_s": 5929.0,
+            "peak_vram_gb": 4.67,
+            "gpu_utilization": 98.0,
+            "status": "ok",
+        },
     ]
 
 
-def test_selects_fastest_safe_batch():
-    assert select_best_batch(_results(), budget_gb=8.0) == 1024
+def test_prefers_highest_gpu_utilisation_near_peak_throughput():
+    assert select_best_batch(_results(), budget_gb=8.0) == 2048
 
 
-def test_excludes_batches_over_memory_budget():
-    assert select_best_batch(_results(), budget_gb=4.0) == 1024
-    assert select_best_batch(_results(), budget_gb=2.5) == 512
+def test_respects_memory_budget():
+    assert select_best_batch(_results(), budget_gb=3.0) == 1024
+    assert select_best_batch(_results(), budget_gb=1.0) == 512
 
 
 def test_fallback_when_all_oom():

@@ -25,8 +25,18 @@ def gpu_utilization() -> float:
         return float("nan")
 
 
-def select_best_batch(results: List[dict], budget_gb: float, fallback: int = 512) -> int:
-    """Highest-throughput batch size whose peak VRAM stays within budget."""
+def select_best_batch(
+    results: List[dict],
+    budget_gb: float,
+    fallback: int = 512,
+    throughput_margin: float = 0.85,
+) -> int:
+    """Batch size with the highest GPU utilisation among near-peak throughputs.
+
+    Candidates whose throughput is at least ``throughput_margin`` of the best are
+    considered equivalent; among them the one keeping the GPU busiest is chosen.
+    Peak VRAM must stay within ``budget_gb``.
+    """
     safe = [
         row
         for row in results
@@ -34,7 +44,14 @@ def select_best_batch(results: List[dict], budget_gb: float, fallback: int = 512
     ]
     if not safe:
         return fallback
-    return int(max(safe, key=lambda row: row["samples_per_s"])["batch_size"])
+    best_throughput = max(row["samples_per_s"] for row in safe)
+    eligible = [row for row in safe if row["samples_per_s"] >= throughput_margin * best_throughput]
+    return int(
+        max(
+            eligible,
+            key=lambda row: (row.get("gpu_utilization", 0.0), row["samples_per_s"]),
+        )["batch_size"]
+    )
 
 
 def benchmark_batch_sizes(
@@ -55,6 +72,7 @@ def benchmark_batch_sizes(
     if device.type != "cuda" or not torch.cuda.is_available():
         return {"batch_size": next(iter(candidates), 1024), "results": [], "reason": "cpu"}
 
+    model.to(device)
     criterion = WeightedSignedFieldLoss()
     total_vram = torch.cuda.get_device_properties(device).total_memory / 1024**3
     budget = vram_fraction * total_vram
@@ -73,6 +91,7 @@ def benchmark_batch_sizes(
             seed=seed,
             drop_last=True,
         )
+        total_steps = warmup + max(1, min(steps, len(loader) - warmup))
         iterator = iter(loader)
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
@@ -80,7 +99,7 @@ def benchmark_batch_sizes(
         timings: List[float] = []
         utilization: List[float] = []
         try:
-            for step in range(steps + warmup):
+            for step in range(total_steps):
                 batch = next(iterator)
                 x = batch["x"].to(device, non_blocking=True)
                 target = batch["target"].to(device, non_blocking=True)
