@@ -29,8 +29,17 @@ def _results():
     ]
 
 
-def test_prefers_highest_gpu_utilisation_near_peak_throughput():
-    assert select_best_batch(_results(), budget_gb=8.0) == 2048
+def test_prefers_smallest_batch_within_throughput_margin():
+    # 6800/5870/5929 -> only the 1024 batch is within 10% of the best throughput
+    assert select_best_batch(_results(), budget_gb=8.0) == 1024
+
+
+def test_larger_batch_wins_when_clearly_faster():
+    results = [
+        {"batch_size": 512, "samples_per_s": 3000.0, "peak_vram_gb": 1.2, "status": "ok"},
+        {"batch_size": 2048, "samples_per_s": 8000.0, "peak_vram_gb": 4.7, "status": "ok"},
+    ]
+    assert select_best_batch(results, budget_gb=8.0) == 2048
 
 
 def test_respects_memory_budget():

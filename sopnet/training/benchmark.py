@@ -29,13 +29,15 @@ def select_best_batch(
     results: List[dict],
     budget_gb: float,
     fallback: int = 512,
-    throughput_margin: float = 0.7,
+    throughput_margin: float = 0.9,
 ) -> int:
-    """Batch size with the highest GPU utilisation among near-peak throughputs.
+    """Fastest batch size, preferring the smallest one when throughput ties.
 
-    Candidates whose throughput is at least ``throughput_margin`` of the best are
-    considered equivalent; among them the one keeping the GPU busiest is chosen.
-    Peak VRAM must stay within ``budget_gb``.
+    Throughput is the wall-clock metric that matters; GPU utilisation and VRAM
+    are secondary. Candidates within ``throughput_margin`` of the best
+    throughput are treated as equivalent and the smallest batch is chosen,
+    which keeps VRAM well below the budget. Peak VRAM must still fit within
+    ``budget_gb``.
     """
     safe = [
         row
@@ -46,12 +48,7 @@ def select_best_batch(
         return fallback
     best_throughput = max(row["samples_per_s"] for row in safe)
     eligible = [row for row in safe if row["samples_per_s"] >= throughput_margin * best_throughput]
-    return int(
-        max(
-            eligible,
-            key=lambda row: (row.get("gpu_utilization", 0.0), row["samples_per_s"]),
-        )["batch_size"]
-    )
+    return int(min(row["batch_size"] for row in eligible))
 
 
 def benchmark_batch_sizes(
