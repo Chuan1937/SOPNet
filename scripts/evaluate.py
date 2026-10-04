@@ -9,13 +9,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sopnet.data.canonical import UNKNOWN  # noqa: E402
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader  # noqa: E402
 from sopnet.evaluation.calibration import expected_calibration_error, reliability_curve  # noqa: E402
 from sopnet.evaluation.evaluate import (  # noqa: E402
     choose_threshold,
     collect_predictions,
     evaluate_field,
+    plot_confusion_matrix,
     plot_prediction_examples,
+    plot_reliability,
     save_metrics,
 )
 from sopnet.models import build_model  # noqa: E402
@@ -86,6 +89,14 @@ def main() -> None:
         }
         if args.examples:
             plot_prediction_examples(outputs, output_dir / "examples", n=args.examples)
+        import numpy as np
+
+        if threshold is not None:
+            final_predictions = np.where(outputs["confidence"] >= threshold, outputs["predictions"], UNKNOWN)
+        else:
+            final_predictions = outputs["predictions"]
+        plot_confusion_matrix(outputs["labels"], final_predictions, output_dir / "fig_confusion_matrix")
+        plot_reliability(outputs["confidence"], correct, output_dir / "fig_calibration")
     else:
         metrics = {}
         outputs = collect_predictions(model, loader, device, task="classify")

@@ -131,6 +131,83 @@ def save_metrics(metrics: Dict[str, float], path: Path) -> Path:
     return path
 
 
+def plot_confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    path: Path,
+    labels=(-1, 0, 1),
+    names=("Down", "Unknown", "Up"),
+) -> Path:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    size = len(labels)
+    matrix = np.zeros((size, size), dtype=np.int64)
+    for i, true_label in enumerate(labels):
+        for j, pred_label in enumerate(labels):
+            matrix[i, j] = int(np.sum((y_true == true_label) & (y_pred == pred_label)))
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(3.2, 2.9), dpi=150)
+    image = axis.imshow(matrix, cmap="Blues")
+    axis.set_xticks(range(size), names, fontsize=7)
+    axis.set_yticks(range(size), names, fontsize=7)
+    axis.set_xlabel("Predicted")
+    axis.set_ylabel("True")
+    for i in range(size):
+        for j in range(size):
+            axis.text(
+                j,
+                i,
+                str(matrix[i, j]),
+                ha="center",
+                va="center",
+                fontsize=7,
+                color="white" if matrix[i, j] > matrix.max() / 2 else "black",
+            )
+    figure.colorbar(image, ax=axis, fraction=0.046)
+    figure.tight_layout()
+    figure.savefig(path.with_suffix(".pdf"))
+    figure.savefig(path.with_suffix(".png"), dpi=600)
+    plt.close(figure)
+    return path
+
+
+def plot_reliability(
+    confidence: np.ndarray,
+    correct: np.ndarray,
+    path: Path,
+    n_bins: int = 10,
+) -> Path:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from sopnet.evaluation.calibration import reliability_curve
+
+    curve = reliability_curve(confidence, correct, n_bins=n_bins)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(3.2, 2.9), dpi=150)
+    axis.plot([0, 1], [0, 1], linestyle="--", linewidth=1.0, color="0.6")
+    valid = ~np.isnan(curve["accuracy"])
+    axis.plot(curve["bin_centre"][valid], curve["accuracy"][valid], marker="o", linewidth=1.4)
+    axis.set_xlabel("Confidence")
+    axis.set_ylabel("Accuracy")
+    axis.set_xlim(0, 1)
+    axis.set_ylim(0, 1)
+    axis.grid(alpha=0.3)
+    figure.tight_layout()
+    figure.savefig(path.with_suffix(".pdf"))
+    figure.savefig(path.with_suffix(".png"), dpi=600)
+    plt.close(figure)
+    return path
+
+
 def plot_prediction_examples(
     outputs: Dict[str, np.ndarray],
     path: Path,
