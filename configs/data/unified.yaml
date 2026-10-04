@@ -1,0 +1,14 @@
+data:
+  root: /mnt/d/AI_Seismic_Data
+  cache_dir: outputs/cache_v1
+  manifest_raw: outputs/manifest_raw.parquet
+  datasets: [scsn, txed, instance, pnw, diting]
+  seed: 20261004
+  split_ratios: [0.8, 0.1, 0.1]
+  preprocessing:
+    fs: 100
+    lowcut: 1.0
+    highcut: 45.0
+    order: 4
+    cache_length: 600
+    p_position: 300

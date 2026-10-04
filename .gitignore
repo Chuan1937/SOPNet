@@ -9,8 +9,8 @@ dist/
 .ipynb_checkpoints/
 
 outputs/
-data/
-cache/
+/data/
+/cache/
 *.pt
 *.pth
 *.ckpt
