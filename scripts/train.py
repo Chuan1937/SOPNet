@@ -53,6 +53,15 @@ def resolve_config(args) -> dict:
         config["train"]["amp"] = False
     if args.device:
         config["train"]["device"] = args.device
+    if args.sigma is not None:
+        config["dataset"]["sigma"] = args.sigma
+    if args.jitter is not None:
+        low, high = args.jitter
+        config["dataset"]["jitter"] = [low, high]
+    if args.lambda_pol is not None:
+        config["train"]["lambda_pol"] = args.lambda_pol
+    if args.lambda_inv is not None:
+        config["train"]["lambda_inv"] = args.lambda_inv
     return config
 
 
@@ -97,6 +106,17 @@ def main() -> None:
     parser.add_argument("--limit-val", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--device", default=None)
+    parser.add_argument("--sigma", type=float, default=None, help="target Gaussian width in samples")
+    parser.add_argument(
+        "--jitter",
+        type=float,
+        nargs=2,
+        default=None,
+        metavar=("LOW", "HIGH"),
+        help="P position range inside the training window (samples)",
+    )
+    parser.add_argument("--lambda-pol", type=float, default=None)
+    parser.add_argument("--lambda-inv", type=float, default=None)
     parser.add_argument("--no-amp", action="store_true")
     parser.add_argument("--examples", type=int, default=12)
     args = parser.parse_args()

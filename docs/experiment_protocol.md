@@ -28,6 +28,18 @@ python scripts/train.py --config configs/experiments/sopnet_full.yaml \
 
 # 5. small hyper-parameter search (20 % data, ~10 epochs)
 #    sigma in {5,10,15}; jitter in {0.4,0.8,1.0 s}; lambda_inv in {0,0.05,0.1}
+#    jitter bounds are given in samples: +-0.4 s -> [160, 240],
+#    +-0.8 s -> [120, 280], +-1.0 s -> [100, 300]
+for sigma in 5 10 15; do
+  for jitter in "160 240" "120 280" "100 300"; do
+    for linv in 0 0.05 0.1; do
+      python scripts/train.py --config configs/experiments/sopnet_full.yaml \
+          --cache-dir outputs/cache_v1 --seed 36 --epochs 10 --limit-train 40000 \
+          --sigma $sigma --jitter $jitter --lambda-inv $linv \
+          --output outputs/sweep/s${sigma}_j${jitter// /_}_i${linv}
+    done
+  done
+done
 
 # 6. full training, three seeds
 for seed in 36 2026 3407; do
