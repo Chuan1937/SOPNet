@@ -29,7 +29,7 @@ def select_best_batch(
     results: List[dict],
     budget_gb: float,
     fallback: int = 512,
-    throughput_margin: float = 0.85,
+    throughput_margin: float = 0.7,
 ) -> int:
     """Batch size with the highest GPU utilisation among near-peak throughputs.
 
@@ -85,7 +85,7 @@ def benchmark_batch_sizes(
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=max(0, min(num_workers, 4)),
+            num_workers=max(0, min(num_workers, 8)),
             persistent_workers=False,
             prefetch_factor=2,
             seed=seed,
