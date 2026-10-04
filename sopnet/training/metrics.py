@@ -36,7 +36,7 @@ def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
         "recall": recall,
         "f1": f1,
         "mcc": mcc,
-        "support": total,
+        "support": int(total),
     }
 
 
