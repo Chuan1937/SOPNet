@@ -14,6 +14,8 @@ even for the full 7.8 M-sample manifest.
 
 from __future__ import annotations
 
+import ctypes
+import gc
 import json
 import multiprocessing as mp
 import traceback
@@ -49,6 +51,21 @@ def _init_worker(data_root: str, preprocess: PreprocessConfig) -> None:
     WORKER["data_root"] = Path(data_root)
     WORKER["preprocess"] = preprocess
     WORKER["readers"] = {}
+    WORKER["trim"] = _malloc_trim()
+
+
+def _malloc_trim():
+    try:
+        return ctypes.CDLL("libc.so.6").malloc_trim
+    except OSError:
+        return None
+
+
+def _release_memory() -> None:
+    gc.collect()
+    trim = WORKER.get("trim")
+    if trim is not None:
+        trim(0)
 
 
 def _get_reader(source: str) -> SourceReader:
@@ -87,6 +104,7 @@ def _process_chunk(records: List[dict]) -> List[dict]:
                     "traceback": traceback.format_exc(limit=2),
                 }
             )
+    _release_memory()
     return results
 
 

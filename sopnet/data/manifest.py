@@ -105,6 +105,8 @@ class SourceReader:
         self.data_root = Path(data_root)
         self._handles: Dict[str, h5py.File] = {}
         self._diting_parts: Dict[str, h5py.File] = {}
+        self._datasets: Dict[tuple, h5py.Dataset] = {}
+        self._diting_groups: Dict[str, h5py.Group] = {}
 
     def _path(self, source_path: str) -> Path:
         return self.data_root / source_path
@@ -129,28 +131,50 @@ class SourceReader:
         return self._diting_parts[key]
 
     def read(self, row) -> np.ndarray:
-        """Read the vertical-component waveform for one manifest row."""
+        """Read the vertical-component waveform for one manifest row.
+
+        Dataset objects are cached (flat and bucket sources) or closed
+        immediately (DiTing, whose 100k leaf datasets must not accumulate in the
+        HDF5 object registry).
+        """
         source = self.source
         if source == "scsn":
-            handle = self._handle(row["source_path"])
-            return np.asarray(handle["X"][int(row["row_index"])], dtype=np.float64)
+            path_key = str(row["source_path"])
+            dataset = self._datasets.get((path_key, "X"))
+            if dataset is None:
+                dataset = self._handle(path_key)["X"]
+                self._datasets[(path_key, "X")] = dataset
+            return np.asarray(dataset[int(row["row_index"])], dtype=np.float64)
 
         if source == "diting":
             part_text, key = str(row["trace_id"]).split(":", 1)
-            handle = self._diting_handle(int(part_text))
-            return np.asarray(handle["earthquake"][key][:, COMPONENT_INDEX[source]], dtype=np.float64)
+            group = self._diting_groups.get(part_text)
+            if group is None:
+                group = self._diting_handle(int(part_text))["earthquake"]
+                self._diting_groups[part_text] = group
+            dataset = group[key]
+            try:
+                return np.asarray(dataset[:, COMPONENT_INDEX[source]], dtype=np.float64)
+            finally:
+                del dataset
 
-        handle = self._handle(row["source_path"])
+        path_key = str(row["source_path"])
         group, index, _, sample_end = parse_trace_id(row["trace_id"])
-        length = row.get("trace_length")
+        dataset = self._datasets.get((path_key, group))
+        if dataset is None:
+            dataset = self._handle(path_key)["data"][group]
+            self._datasets[(path_key, group)] = dataset
         if sample_end == 0:
-            sample_end = int(length) if length is not None else handle["data"][group].shape[-1]
+            length = row.get("trace_length")
+            sample_end = int(length) if length is not None else dataset.shape[-1]
         return np.asarray(
-            handle["data"][group][index, COMPONENT_INDEX[source], :sample_end],
+            dataset[index, COMPONENT_INDEX[source], :sample_end],
             dtype=np.float64,
         )
 
     def close(self) -> None:
+        self._datasets.clear()
+        self._diting_groups.clear()
         for handle in list(self._handles.values()):
             handle.close()
         for handle in list(self._diting_parts.values()):
