@@ -128,10 +128,14 @@ class Trainer:
                     loss = loss + self.config.lambda_inv * self.inversion_loss(field, inverted)
         return loss
 
-    def train_epoch(self, loader) -> Dict[str, float]:
+    def train_epoch(self, loader, epoch: int = 0) -> Dict[str, float]:
         self.model.train()
         total, count = 0.0, 0
-        for batch in loader:
+        seen = 0
+        total_steps = len(loader)
+        log_every = max(1, total_steps // 20)
+        started = time.time()
+        for step, batch in enumerate(loader):
             self.optimizer.zero_grad(set_to_none=True)
             loss = self._forward_loss(batch, training=True)
             self.scaler.scale(loss).backward()
@@ -144,6 +148,23 @@ class Trainer:
                 self.scheduler.step()
             total += float(loss.detach())
             count += 1
+            seen += int(batch["x"].shape[0])
+
+            if step % log_every == 0 or step == total_steps - 1:
+                elapsed = max(1e-6, time.time() - started)
+                step_seconds = elapsed / (step + 1)
+                remaining = step_seconds * (total_steps - step - 1)
+                utilization = float("nan")
+                if self.device.type == "cuda":
+                    try:
+                        utilization = float(torch.cuda.utilization())
+                    except Exception:  # noqa: BLE001 - NVML may be unavailable
+                        pass
+                self._log(
+                    f"epoch {epoch:03d} step {step + 1:5d}/{total_steps} "
+                    f"loss {total / count:.4f} | {seen / elapsed:7.0f} samples/s | "
+                    f"ETA {remaining / 60:5.1f} min | GPU {utilization:4.0f}%"
+                )
         return {"loss": total / max(1, count), "lr": current_lr(self.optimizer)}
 
     @torch.no_grad()
@@ -226,7 +247,7 @@ class Trainer:
         )
         for epoch in range(1, self.config.epochs + 1):
             started = time.time()
-            train_metrics = self.train_epoch(train_loader)
+            train_metrics = self.train_epoch(train_loader, epoch=epoch)
             val_metrics = self.validate(val_loader)
             record = {
                 "epoch": epoch,
