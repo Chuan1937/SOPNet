@@ -109,10 +109,15 @@ class SourceReader:
     def _path(self, source_path: str) -> Path:
         return self.data_root / source_path
 
+    def _open(self, path: Path) -> h5py.File:
+        # The datasets are contiguous, so the per-dataset chunk cache only wastes
+        # RAM (one entry per bucket/DiTing key); disable it.
+        return h5py.File(path, "r", rdcc_nbytes=0, rdcc_nslots=1, rdcc_w0=0.0)
+
     def _handle(self, source_path: str) -> h5py.File:
         key = str(source_path)
         if key not in self._handles:
-            self._handles[key] = h5py.File(self._path(source_path), "r")
+            self._handles[key] = self._open(self._path(source_path))
         return self._handles[key]
 
     def _diting_handle(self, part: int) -> h5py.File:
@@ -120,7 +125,7 @@ class SourceReader:
         if key not in self._diting_parts:
             directory = self.data_root / SOURCE_PATHS["diting"]["dir"]
             path = directory / f"DiTing330km_part_{part}.hdf5"
-            self._diting_parts[key] = h5py.File(path, "r")
+            self._diting_parts[key] = self._open(path)
         return self._diting_parts[key]
 
     def read(self, row) -> np.ndarray:
