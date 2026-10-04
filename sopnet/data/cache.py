@@ -2,9 +2,14 @@
 
 The raw datasets stay untouched; only compact float32 windows are copied into a
 Linux-native cache directory so training never fights WSL/NTFS random-read
-latency. Each shard stores ``X [N, 600]``, ``p_pick``, ``label`` and the global
-manifest index; the companion ``index.parquet`` maps manifest rows to shards and
-carries the waveform hash used for leakage-safe splits.
+latency. Each shard stores ``X [N, 600]``, ``p_pick``, ``label``, the global
+manifest index and the waveform hash; the companion ``index.parquet`` maps
+manifest rows to shards.
+
+The build is resumable: every shard is self-describing, so an interrupted run
+can continue with ``--resume`` without losing completed shards. Chunks are
+generated lazily and workers are spawned (not forked), keeping peak memory flat
+even for the full 7.8 M-sample manifest.
 """
 
 from __future__ import annotations
@@ -145,13 +150,37 @@ def _make_records(frame: pd.DataFrame) -> List[dict]:
     return records
 
 
+def _existing_shards(cache_dir: Path) -> List[Path]:
+    return sorted(cache_dir.glob("shard_*.h5"))
+
+
+def _read_existing(cache_dir: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """Return ``(sample_index, waveform_hash)`` of every completed shard.
+
+    Shards interrupted mid-write are unreadable and are removed so a resumed run
+    starts from a consistent state.
+    """
+    positions, hashes = [], []
+    for path in _existing_shards(cache_dir):
+        try:
+            with h5py.File(path, "r") as handle:
+                positions.append(np.asarray(handle["sample_index"][:], dtype=np.int64))
+                hashes.append(np.asarray(handle["waveform_hash"][:], dtype=np.uint64))
+        except (OSError, KeyError):
+            path.unlink(missing_ok=True)
+    if not positions:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.uint64)
+    return np.concatenate(positions), np.concatenate(hashes)
+
+
 def build_cache(
     manifest: pd.DataFrame,
     config: CacheConfig,
     limit: Optional[int] = None,
+    resume: bool = False,
     logger=None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Build the cache and return ``(manifest_with_splits, cache_index)``."""
+    """Build (or resume) the cache; returns ``(manifest_with_splits, cache_index)``."""
     cache_dir = Path(config.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -161,29 +190,36 @@ def build_cache(
         frame = manifest.sample(n=min(int(limit), len(manifest)), random_state=config.seed).reset_index(
             drop=True
         )
-    # Work on a private copy so the caller's manifest is never mutated. Chunks are
-    # generated lazily; keeping all 7.8M row dicts in memory is what previously
-    # filled the machine once the pool workers forked.
     frame = frame.copy()
     frame["_orig"] = np.arange(len(frame), dtype=np.int64)
+
+    completed_positions, completed_hashes = (
+        _read_existing(cache_dir) if resume else (np.empty(0, dtype=np.int64), np.empty(0, dtype=np.uint64))
+    )
+    already_done = np.zeros(len(frame), dtype=bool)
+    already_done[completed_positions] = True
+    next_shard = (
+        max(int(path.stem.split("_")[1]) for path in _existing_shards(cache_dir)) + 1
+        if resume and _existing_shards(cache_dir)
+        else 0
+    )
+
     ordered = _sort_for_locality(frame)
     n_total = len(ordered)
-
-    hashes = np.zeros(len(frame), dtype=np.uint64)
-    success = np.zeros(len(frame), dtype=bool)
 
     x_buffer: List[np.ndarray] = []
     p_buffer: List[np.int16] = []
     label_buffer: List[np.int8] = []
+    hash_buffer: List[np.uint64] = []
     index_buffer: List[int] = []
-    shard_records: List[Tuple[np.ndarray, int]] = []
     failures: List[dict] = []
-    shard_count = 0
-    cached_count = 0
+    shard_count = next_shard
+    cached_count = int(already_done.sum())
     position_in_shard = 0
 
     def flush_shard() -> None:
-        nonlocal x_buffer, p_buffer, label_buffer, index_buffer, shard_count, position_in_shard
+        nonlocal x_buffer, p_buffer, label_buffer, hash_buffer, index_buffer, shard_count
+        nonlocal position_in_shard
         if not x_buffer:
             return
         path = cache_dir / f"shard_{shard_count:05d}.h5"
@@ -192,26 +228,24 @@ def build_cache(
             handle.create_dataset("p_pick", data=np.array(p_buffer, dtype=np.int16))
             handle.create_dataset("label", data=np.array(label_buffer, dtype=np.int8))
             handle.create_dataset("sample_index", data=np.array(index_buffer, dtype=np.int64))
+            handle.create_dataset("waveform_hash", data=np.array(hash_buffer, dtype=np.uint64))
             handle.attrs["cache_length"] = config.preprocess.cache_length
             handle.attrs["p_position"] = config.preprocess.p_position
             handle.attrs["sampling_rate"] = config.preprocess.fs
-        shard_records.append((np.asarray(index_buffer, dtype=np.int64), shard_count))
         shard_count += 1
         position_in_shard = 0
-        x_buffer, p_buffer, label_buffer, index_buffer = [], [], [], []
+        x_buffer, p_buffer, label_buffer, hash_buffer, index_buffer = [], [], [], [], []
 
     def handle_result(result: dict) -> None:
         nonlocal position_in_shard, cached_count
         if not result["ok"]:
             failures.append(result)
             return
-        original = int(result["orig_index"])
         x_buffer.append(result["x"])
         p_buffer.append(result["p_pick"])
         label_buffer.append(result["label"])
-        index_buffer.append(original)
-        hashes[original] = np.uint64(result["hash"])
-        success[original] = True
+        hash_buffer.append(np.uint64(result["hash"]))
+        index_buffer.append(int(result["orig_index"]))
         position_in_shard += 1
         cached_count += 1
         if logger is not None and cached_count % 500_000 == 0:
@@ -234,29 +268,50 @@ def build_cache(
                 begin = start + offset
                 if begin >= n_total:
                     break
-                wave.append(_make_records(ordered.iloc[begin : begin + config.chunk_size]))
+                piece = ordered.iloc[begin : begin + config.chunk_size]
+                if cached_count:
+                    keep = ~already_done[piece["_orig"].to_numpy()]
+                    piece = piece[keep]
+                if len(piece):
+                    wave.append(_make_records(piece))
+            if not wave:
+                continue
             for results in executor.map(_process_chunk, wave):
                 for result in results:
                     handle_result(result)
     flush_shard()
 
+    completed_positions, completed_hashes = _read_existing(cache_dir)
+    if len(np.unique(completed_positions)) != len(completed_positions):
+        raise RuntimeError("duplicate sample indices across cache shards")
+
+    success = np.zeros(len(frame), dtype=bool)
+    success[completed_positions] = True
     positions = np.flatnonzero(success)
-    # ``frame`` is sorted by read locality; restore the original manifest order so
-    # that row k of the output corresponds to ``manifest_index == k``.
+    hash_by_position = np.zeros(len(frame), dtype=np.uint64)
+    hash_by_position[completed_positions] = completed_hashes
+
+    # ``frame`` is sorted by read locality in ``ordered``; restore original order
+    # so row k of the output corresponds to ``manifest_index == k``.
     manifest_out = frame.sort_values("_orig", kind="stable").drop(columns="_orig").reset_index(drop=True)
-    manifest_out["waveform_hash"] = hashes[positions]
+    manifest_out = manifest_out.iloc[positions].reset_index(drop=True)
+    manifest_out["waveform_hash"] = hash_by_position[positions]
     manifest_out = assign_splits(manifest_out, seed=config.seed)
 
     old_to_new = np.full(len(frame), -1, dtype=np.int64)
     old_to_new[positions] = np.arange(len(positions), dtype=np.int64)
-    if shard_records:
-        orig = np.concatenate([record[0] for record in shard_records])
-        shard_column = np.concatenate(
-            [np.full(len(record[0]), record[1], dtype=np.int32) for record in shard_records]
-        )
-        shard_position = np.concatenate(
-            [np.arange(len(record[0]), dtype=np.int32) for record in shard_records]
-        )
+    orig_parts, shard_parts, shard_index_parts = [], [], []
+    for path in _existing_shards(cache_dir):
+        shard_id = int(path.stem.split("_")[1])
+        with h5py.File(path, "r") as handle:
+            sample_index = np.asarray(handle["sample_index"][:], dtype=np.int64)
+        orig_parts.append(sample_index)
+        shard_parts.append(np.full(len(sample_index), shard_id, dtype=np.int32))
+        shard_index_parts.append(np.arange(len(sample_index), dtype=np.int32))
+    if orig_parts:
+        orig = np.concatenate(orig_parts)
+        shard_column = np.concatenate(shard_parts)
+        shard_position = np.concatenate(shard_index_parts)
     else:
         orig = np.empty(0, dtype=np.int64)
         shard_column = np.empty(0, dtype=np.int32)
@@ -290,7 +345,7 @@ def build_cache(
         },
         "n_requested": int(len(frame)),
         "n_cached": int(len(manifest_out)),
-        "n_shards": int(shard_count),
+        "n_shards": int(len(_existing_shards(cache_dir))),
         "failures": int(len(failures)),
         "failure_examples": failures[:10],
         "sources": manifest_out["source"].value_counts().to_dict(),
@@ -306,7 +361,7 @@ def build_cache(
             "cache built: %d/%d samples, %d shards, %d failures",
             len(manifest_out),
             len(frame),
-            shard_count,
+            meta["n_shards"],
             len(failures),
         )
         if failures:

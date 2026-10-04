@@ -26,6 +26,11 @@ def main() -> None:
     parser.add_argument("--chunk-size", type=int, default=2_000)
     parser.add_argument("--limit", type=int, default=None, help="cap total cached samples")
     parser.add_argument("--limit-per-source", type=int, default=None)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="keep completed shards and only process missing samples",
+    )
     parser.add_argument("--seed", type=int, default=20261004)
     parser.add_argument("--fs", type=int, default=100)
     parser.add_argument("--lowcut", type=float, default=1.0)
@@ -61,7 +66,7 @@ def main() -> None:
         seed=args.seed,
         preprocess=preprocess,
     )
-    manifest_out, index = build_cache(manifest, config, limit=args.limit, logger=logger)
+    manifest_out, index = build_cache(manifest, config, limit=args.limit, resume=args.resume, logger=logger)
     report = check_split_leakage(manifest_out)
     logger.info("split leakage check: %s", report)
     logger.info("split sizes:\n%s", manifest_out["split"].value_counts().to_string())
