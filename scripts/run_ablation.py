@@ -19,8 +19,8 @@ EXPERIMENTS = {
     "A_cls": "configs/experiments/classification.yaml",
     "B_field": "configs/experiments/signed_field.yaml",
     "C_jitter": "configs/experiments/signed_field_jitter.yaml",
-    "D_pol": "configs/experiments/sopnet_full.yaml",
-    "E_inv": "configs/experiments/sopnet_full.yaml",
+    "D_polarity": "configs/experiments/signed_field_polarity.yaml",
+    "E_full": "configs/experiments/sopnet_full.yaml",
 }
 
 
