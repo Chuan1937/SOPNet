@@ -1,0 +1,9 @@
+# Ablation B: signed field only (fixed centred P, no polarity/inversion loss)
+train:
+  task: field
+  lambda_pol: 0.0
+  lambda_inv: 0.0
+dataset:
+  jitter: null
+output:
+  dir: outputs/runs/ablation_B_field

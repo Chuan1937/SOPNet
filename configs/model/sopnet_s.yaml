@@ -1,0 +1,8 @@
+model:
+  name: sopnet
+  stem_channels: 48
+  encoder_channels: [64, 96, 128]
+  bottleneck_channels: 192
+  dilations: [1, 2, 4, 8]
+  window_length: 400
+  dropout: 0.0
