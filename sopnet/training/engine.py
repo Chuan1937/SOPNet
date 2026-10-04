@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 
 from sopnet.data.canonical import DOWN, UNKNOWN, UP
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader
@@ -133,9 +135,18 @@ class Trainer:
         total, count = 0.0, 0
         seen = 0
         total_steps = len(loader)
-        log_every = max(1, total_steps // 20)
+        log_every = max(1, total_steps // 10)
         started = time.time()
-        for step, batch in enumerate(loader):
+        progress = tqdm(
+            loader,
+            desc=f"epoch {epoch:03d}",
+            unit="step",
+            mininterval=5.0,
+            dynamic_ncols=True,
+            file=sys.stderr,
+            leave=True,
+        )
+        for step, batch in enumerate(progress):
             self.optimizer.zero_grad(set_to_none=True)
             loss = self._forward_loss(batch, training=True)
             self.scaler.scale(loss).backward()
@@ -149,6 +160,8 @@ class Trainer:
             total += float(loss.detach())
             count += 1
             seen += int(batch["x"].shape[0])
+            current_loss = total / count
+            progress.set_postfix(loss=f"{current_loss:.4f}", lr=f"{current_lr(self.optimizer):.2e}")
 
             if step % log_every == 0 or step == total_steps - 1:
                 elapsed = max(1e-6, time.time() - started)
@@ -162,9 +175,10 @@ class Trainer:
                         pass
                 self._log(
                     f"epoch {epoch:03d} step {step + 1:5d}/{total_steps} "
-                    f"loss {total / count:.4f} | {seen / elapsed:7.0f} samples/s | "
+                    f"loss {current_loss:.4f} | {seen / elapsed:7.0f} samples/s | "
                     f"ETA {remaining / 60:5.1f} min | GPU {utilization:4.0f}%"
                 )
+        progress.close()
         return {"loss": total / max(1, count), "lr": current_lr(self.optimizer)}
 
     @torch.no_grad()
