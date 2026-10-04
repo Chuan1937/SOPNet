@@ -19,7 +19,6 @@ import gc
 import json
 import multiprocessing as mp
 import traceback
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -44,6 +43,7 @@ class CacheConfig:
     workers: int = 8
     seed: int = DEFAULT_SEED
     compression: str = "lzf"
+    tasks_per_child: int = 50
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
 
 
@@ -274,12 +274,16 @@ def build_cache(
     waves = max(1, config.workers) * 4
     step = config.chunk_size * waves
     context = mp.get_context("spawn")
-    with ProcessPoolExecutor(
-        max_workers=max(1, config.workers),
-        mp_context=context,
+    # Worker processes recycle after ``tasks_per_child`` chunks: h5py/HDF5 holds
+    # some per-dataset state that cannot be fully reclaimed in-process, so a
+    # bounded worker lifetime is the only way to guarantee flat memory.
+    pool = context.Pool(
+        processes=max(1, config.workers),
         initializer=_init_worker,
         initargs=(str(config.data_root), config.preprocess),
-    ) as executor:
+        maxtasksperchild=max(1, config.tasks_per_child),
+    )
+    try:
         for start in range(0, n_total, step):
             wave = []
             for offset in range(0, step, config.chunk_size):
@@ -294,9 +298,12 @@ def build_cache(
                     wave.append(_make_records(piece))
             if not wave:
                 continue
-            for results in executor.map(_process_chunk, wave):
+            for results in pool.imap(_process_chunk, wave, chunksize=1):
                 for result in results:
                     handle_result(result)
+    finally:
+        pool.close()
+        pool.join()
     flush_shard()
 
     completed_positions, completed_hashes = _read_existing(cache_dir)
@@ -358,6 +365,7 @@ def build_cache(
             "workers": config.workers,
             "seed": config.seed,
             "compression": config.compression,
+            "tasks_per_child": config.tasks_per_child,
             "data_root": str(config.data_root),
             "preprocess": asdict(config.preprocess),
         },

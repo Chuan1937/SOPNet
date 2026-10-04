@@ -24,6 +24,12 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--shard-size", type=int, default=50_000)
     parser.add_argument("--chunk-size", type=int, default=2_000)
+    parser.add_argument(
+        "--tasks-per-child",
+        type=int,
+        default=50,
+        help="recycle each worker after this many chunks to bound memory",
+    )
     parser.add_argument("--limit", type=int, default=None, help="cap total cached samples")
     parser.add_argument("--limit-per-source", type=int, default=None)
     parser.add_argument(
@@ -64,6 +70,7 @@ def main() -> None:
         chunk_size=args.chunk_size,
         workers=args.workers,
         seed=args.seed,
+        tasks_per_child=args.tasks_per_child,
         preprocess=preprocess,
     )
     manifest_out, index = build_cache(manifest, config, limit=args.limit, resume=args.resume, logger=logger)
