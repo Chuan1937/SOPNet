@@ -20,7 +20,7 @@ from sopnet.losses import (
     WeightedSignedFieldLoss,
 )
 from sopnet.training.checkpoint import save_checkpoint
-from sopnet.training.metrics import binary_metrics, p_error_metrics
+from sopnet.training.metrics import binary_metrics, macro_f1, p_error_metrics
 from sopnet.training.optimizer import build_optimizer, build_scheduler, current_lr
 from sopnet.utils.system import collect_env, peak_gpu_memory_gb
 
@@ -186,6 +186,11 @@ class Trainer:
         confidences = np.concatenate(confidences) if confidences else np.array([])
 
         metrics: Dict[str, float] = {"loss": total / max(1, count)}
+        if self.config.task == "classify":
+            if labels.size:
+                metrics["accuracy"] = float(np.mean(predictions == labels))
+                metrics["macro_f1"] = macro_f1(labels, predictions, labels=(DOWN, UNKNOWN, UP))
+            return metrics
         known = labels != UNKNOWN
         if known.any():
             metrics.update(
@@ -194,6 +199,7 @@ class Trainer:
                     for key, value in binary_metrics(labels[known], predictions[known]).items()
                 }
             )
+            metrics["macro_f1"] = macro_f1(labels[known], predictions[known], labels=(DOWN, UP))
         if p_pred:
             metrics.update(p_error_metrics(np.concatenate(p_pred), np.concatenate(p_true), fs=100))
         return metrics
