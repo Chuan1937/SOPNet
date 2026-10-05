@@ -8,6 +8,8 @@ P always sitting at the same position.
 
 from __future__ import annotations
 
+import ctypes
+import gc
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -45,10 +47,9 @@ class UnifiedPolarityDataset(Dataset):
     ):
         self.cache_dir = Path(cache_dir)
         loaded_manifest, loaded_index = load_cache(self.cache_dir)
-        self.manifest = loaded_manifest if manifest is None else manifest
+        frame = loaded_manifest if manifest is None else manifest
         cache_index = loaded_index if index is None else index
 
-        frame = self.manifest
         if "manifest_index" in cache_index.columns:
             cache_index = cache_index.sort_values("manifest_index", kind="stable").reset_index(drop=True)
             if not np.array_equal(
@@ -73,6 +74,11 @@ class UnifiedPolarityDataset(Dataset):
         self.shard_indices = cache_index["shard_index"].to_numpy(dtype=np.int64)
         self.sample_ids = cache_index["sample_id"].to_numpy()
 
+        # Release the (multi-GB) manifest/index frames; only the compact arrays
+        # above are needed at training time. Keeping them would also be shared
+        # with forked workers and copied on refcount updates.
+        del frame, selected, cache_index, loaded_manifest, loaded_index
+
         self.window_length = int(window_length)
         self.sigma = float(sigma)
         self.jitter = jitter
@@ -80,7 +86,13 @@ class UnifiedPolarityDataset(Dataset):
         self.p_shift_samples = int(p_shift_samples)
         self.seed = int(seed)
         self._handles: Dict[int, h5py.File] = {}
+        self._x_datasets: Dict[int, h5py.Dataset] = {}
         self._rng = np.random.default_rng(seed)
+        self._reads = 0
+        try:
+            self._trim = ctypes.CDLL("libc.so.6").malloc_trim
+        except OSError:
+            self._trim = None
 
         if self.window_length > 600:
             raise ValueError("window_length cannot exceed the 600-sample cache window")
@@ -94,6 +106,14 @@ class UnifiedPolarityDataset(Dataset):
             handle = h5py.File(self.cache_dir / f"shard_{int(shard):05d}.h5", "r")
             self._handles[int(shard)] = handle
         return handle
+
+    def _x_dataset(self, shard: int) -> h5py.Dataset:
+        """Cache the ``X`` dataset object; creating one per read leaks HDF5 state."""
+        dataset = self._x_datasets.get(int(shard))
+        if dataset is None:
+            dataset = self._handle(int(shard))["X"]
+            self._x_datasets[int(shard)] = dataset
+        return dataset
 
     def _crop_start(self) -> int:
         base = (600 - self.window_length) // 2
@@ -110,7 +130,13 @@ class UnifiedPolarityDataset(Dataset):
         label = int(self.labels[index])
         shard = int(self.shards[index])
         position = int(self.shard_indices[index])
-        waveform = np.asarray(self._handle(shard)["X"][position], dtype=np.float32)
+        waveform = np.asarray(self._x_dataset(shard)[position], dtype=np.float32)
+
+        self._reads += 1
+        if self._reads % 20_000 == 0:
+            gc.collect()
+            if self._trim is not None:
+                self._trim(0)
 
         start = self._crop_start()
         window = waveform[start : start + self.window_length].copy()
@@ -128,6 +154,7 @@ class UnifiedPolarityDataset(Dataset):
         }
 
     def close(self) -> None:
+        self._x_datasets.clear()
         for handle in self._handles.values():
             handle.close()
         self._handles.clear()
@@ -135,6 +162,7 @@ class UnifiedPolarityDataset(Dataset):
     def __getstate__(self):
         state = self.__dict__.copy()
         state["_handles"] = {}
+        state["_x_datasets"] = {}
         return state
 
     def __del__(self):
@@ -150,7 +178,7 @@ def make_dataloader(
     shuffle: bool,
     num_workers: int = 4,
     pin_memory: bool = True,
-    persistent_workers: bool = True,
+    persistent_workers: bool = False,
     prefetch_factor: int = 4,
     seed: int = 0,
     drop_last: bool = False,

@@ -41,12 +41,18 @@ for sigma in 5 10 15; do
   done
 done
 
-# 6. full training, three seeds
+# 6. full training, three seeds (or: bash scripts/run_seeds.sh 512 50)
 for seed in 36 2026 3407; do
   python scripts/train.py --config configs/experiments/sopnet_full.yaml \
       --cache-dir outputs/cache_v1 --output outputs/runs/sopnet_full_$seed \
-      --epochs 50 --batch-size 1024 --seed $seed
+      --epochs 50 --batch-size 512 --seed $seed
 done
+
+# Interrupted runs resume from <output>/last.pt (model, optimizer, scheduler,
+# epoch, history). run_seeds.sh adds --resume automatically when last.pt exists:
+python scripts/train.py --config configs/experiments/sopnet_full.yaml \
+    --cache-dir outputs/cache_v1 --output outputs/runs/sopnet_full_36 \
+    --epochs 50 --batch-size 512 --seed 36 --resume
 
 # 7. baselines on identical splits
 python scripts/train_baselines.py --cache-dir outputs/cache_v1 \

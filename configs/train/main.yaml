@@ -15,7 +15,10 @@ train:
   patience: 10
   num_workers: 8
   pin_memory: true
-  persistent_workers: true
+  # Workers are recreated every epoch: HDF5 holds per-dataset state that is not
+  # fully reclaimed in-process, and persistent workers leaked ~0.3 B/sample
+  # until the OOM killer intervened after ~30 epochs.
+  persistent_workers: false
   prefetch_factor: 4
   seed: 36
   device: cuda

@@ -46,7 +46,7 @@ class TrainConfig:
     patience: int = 10
     num_workers: int = 8
     pin_memory: bool = True
-    persistent_workers: bool = True
+    persistent_workers: bool = False
     prefetch_factor: int = 4
     seed: int = 36
     device: str = "cuda"
@@ -243,6 +243,7 @@ class Trainer:
         self,
         train_dataset: UnifiedPolarityDataset,
         val_dataset: UnifiedPolarityDataset,
+        resume_payload: Optional[Dict] = None,
     ) -> Dict[str, object]:
         train_loader = self._build_loader(train_dataset, shuffle=True)
         val_loader = self._build_loader(val_dataset, shuffle=False)
@@ -253,13 +254,25 @@ class Trainer:
         best = float("-inf")
         best_epoch = 0
         patience = 0
+        start_epoch = 1
+        if resume_payload:
+            if resume_payload.get("optimizer_state") is not None:
+                self.optimizer.load_state_dict(resume_payload["optimizer_state"])
+            if resume_payload.get("scheduler_state") is not None:
+                self.scheduler.load_state_dict(resume_payload["scheduler_state"])
+            start_epoch = int(resume_payload.get("epoch", 0)) + 1
+            best = float(resume_payload.get("best_metric", float("-inf")))
+            best_epoch = int(resume_payload.get("best_epoch", 0))
+            patience = int(resume_payload.get("patience", 0))
+            self.history = list(resume_payload.get("history", []))
+            self._log(f"resuming at epoch {start_epoch} (best {best:.4f} @ epoch {best_epoch})")
 
         parameters = sum(p.numel() for p in self.model.parameters())
         self._log(
             f"training {self.config.task} model: {parameters:,} parameters, "
             f"device={self.device}, train={len(train_dataset)}, val={len(val_dataset)}"
         )
-        for epoch in range(1, self.config.epochs + 1):
+        for epoch in range(start_epoch, self.config.epochs + 1):
             started = time.time()
             train_metrics = self.train_epoch(train_loader, epoch=epoch)
             val_metrics = self.validate(val_loader)
@@ -286,6 +299,8 @@ class Trainer:
                     self.scheduler,
                     epoch,
                     best,
+                    best_epoch=best_epoch,
+                    patience=patience,
                     config=self.run_config,
                     env=self.env,
                     history=self.history,
@@ -299,6 +314,8 @@ class Trainer:
                 self.scheduler,
                 epoch,
                 best,
+                best_epoch=best_epoch,
+                patience=patience,
                 config=self.run_config,
                 env=self.env,
                 history=self.history,

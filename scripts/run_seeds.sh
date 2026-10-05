@@ -10,11 +10,16 @@ EPOCHS="${2:-50}"
 
 for seed in 36 2026 3407; do
   echo "=== SOPNet seed ${seed} start $(date) ==="
+  RESUME=""
+  if [ -f "outputs/runs/sopnet_full_${seed}/last.pt" ]; then
+    RESUME="--resume"
+    echo "found checkpoint, resuming seed ${seed}"
+  fi
   python scripts/train.py \
     --config configs/experiments/sopnet_full.yaml \
     --cache-dir outputs/cache_v1 \
     --output "outputs/runs/sopnet_full_${seed}" \
-    --epochs "${EPOCHS}" --batch-size "${BATCH_SIZE}" --seed "${seed}"
+    --epochs "${EPOCHS}" --batch-size "${BATCH_SIZE}" --seed "${seed}" ${RESUME}
   python scripts/evaluate.py \
     --checkpoint "outputs/runs/sopnet_full_${seed}/best.pt" \
     --cache-dir outputs/cache_v1 \

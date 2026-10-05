@@ -118,6 +118,11 @@ def main() -> None:
     parser.add_argument("--lambda-pol", type=float, default=None)
     parser.add_argument("--lambda-inv", type=float, default=None)
     parser.add_argument("--no-amp", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue from <output>/last.pt when it exists",
+    )
     parser.add_argument("--examples", type=int, default=12)
     parser.add_argument(
         "--auto-batch",
@@ -174,7 +179,19 @@ def main() -> None:
         run_config=config,
     )
     logger.info(format_env_report(trainer.env))
-    summary = trainer.fit(train_dataset, val_dataset)
+    resume_payload = None
+    last_checkpoint = output_dir / "last.pt"
+    if args.resume and last_checkpoint.exists():
+        payload = load_checkpoint(last_checkpoint)
+        model.load_state_dict(payload["model_state"])
+        resume_payload = payload
+        logger.info(
+            "resuming from %s (epoch %s, best %.4f)",
+            last_checkpoint,
+            payload.get("epoch"),
+            float(payload.get("best_metric", float("nan"))),
+        )
+    summary = trainer.fit(train_dataset, val_dataset, resume_payload=resume_payload)
     logger.info(
         "training finished: best epoch %s (%s=%.4f)",
         summary["best_epoch"],
