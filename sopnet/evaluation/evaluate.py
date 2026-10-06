@@ -114,6 +114,15 @@ def evaluate_field(
         covered = confidence >= threshold
         if covered.any():
             metrics["covered_accuracy"] = float(np.mean(labels[covered] == pred_with_unknown[covered]))
+        # Selective prediction restricted to labelled U/D samples: X samples have
+        # no ground-truth polarity, so mixing them into "covered accuracy" makes
+        # the number meaningless.
+        covered_known = covered & known
+        metrics["coverage_known"] = float(covered_known.sum() / max(1, int(known.sum())))
+        if covered_known.any():
+            metrics["covered_accuracy_known"] = float(
+                np.mean(labels[covered_known] == pred_with_unknown[covered_known])
+            )
     return metrics
 
 

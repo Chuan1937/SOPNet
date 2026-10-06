@@ -286,7 +286,7 @@ def train_baseline(
 
 
 @torch.no_grad()
-def evaluate_baseline(
+def collect_baseline_predictions(
     name: str,
     checkpoint: Path,
     cache_dir: Path,
@@ -294,7 +294,8 @@ def evaluate_baseline(
     batch_size: int = 1024,
     num_workers: int = 4,
     device: str = "cuda",
-) -> Dict[str, float]:
+) -> Dict[str, np.ndarray]:
+    """Load a baseline checkpoint and return per-sample labels/predictions/confidence."""
     spec = BASELINE_SPECS[name]
     model = BaselineWrapper(build_baseline(name), spec)
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -312,8 +313,34 @@ def evaluate_baseline(
         labels.append(batch["label"].numpy())
         predictions.append(pred.cpu().numpy())
         confidences.append(confidence.cpu().numpy())
-    y_true = np.concatenate(labels)
-    y_pred = np.concatenate(predictions)
+    return {
+        "labels": np.concatenate(labels),
+        "predictions": np.concatenate(predictions),
+        "confidence": np.concatenate(confidences),
+    }
+
+
+@torch.no_grad()
+def evaluate_baseline(
+    name: str,
+    checkpoint: Path,
+    cache_dir: Path,
+    split: str = "test",
+    batch_size: int = 1024,
+    num_workers: int = 4,
+    device: str = "cuda",
+) -> Dict[str, float]:
+    outputs = collect_baseline_predictions(
+        name,
+        checkpoint,
+        cache_dir,
+        split=split,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        device=device,
+    )
+    y_true = outputs["labels"]
+    y_pred = outputs["predictions"]
     known = y_true != UNKNOWN
     metrics = binary_metrics(y_true[known], y_pred[known]) if known.any() else {}
     metrics["n"] = int(len(y_true))

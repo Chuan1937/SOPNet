@@ -11,7 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sopnet.data.canonical import UNKNOWN  # noqa: E402
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader  # noqa: E402
-from sopnet.evaluation.calibration import expected_calibration_error, reliability_curve  # noqa: E402
+from sopnet.evaluation.calibration import (  # noqa: E402
+    apply_platt_scaling,
+    expected_calibration_error,
+    fit_platt_scaling,
+    reliability_curve,
+)
 from sopnet.evaluation.evaluate import (  # noqa: E402
     choose_threshold,
     collect_predictions,
@@ -65,13 +70,13 @@ def main() -> None:
 
     threshold = args.threshold
     if task == "field":
+        val_dataset = UnifiedPolarityDataset(
+            args.cache_dir, split="val", jitter=None, sigma=sigma, window_length=window
+        )
+        val_loader = make_dataloader(
+            val_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers
+        )
         if args.auto_threshold:
-            val_dataset = UnifiedPolarityDataset(
-                args.cache_dir, split="val", jitter=None, sigma=sigma, window_length=window
-            )
-            val_loader = make_dataloader(
-                val_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers
-            )
             threshold = choose_threshold(model, val_loader, device)
             logger.info("auto threshold from validation: %.3f", threshold)
         metrics = evaluate_field(model, loader, device, threshold=threshold)
@@ -82,11 +87,34 @@ def main() -> None:
             task="field",
             max_plot_samples=max(1, args.examples) if args.examples else 0,
         )
+        known = outputs["labels"] != UNKNOWN
         correct = outputs["predictions"] == outputs["labels"]
-        metrics["ece"] = expected_calibration_error(outputs["confidence"], correct)
-        metrics["reliability"] = {
-            key: value.tolist() for key, value in reliability_curve(outputs["confidence"], correct).items()
+
+        # The field model emits an unnormalised peak magnitude, not a
+        # probability. Fit Platt scaling on validation and report ECE on the
+        # calibrated probability over labelled U/D samples only.
+        val_outputs = collect_predictions(model, val_loader, device, task="field")
+        val_known = val_outputs["labels"] != UNKNOWN
+        parameters = fit_platt_scaling(
+            val_outputs["confidence"][val_known],
+            val_outputs["predictions"][val_known] == val_outputs["labels"][val_known],
+        )
+        calibrated = apply_platt_scaling(outputs["confidence"], parameters)
+        metrics["calibration"] = {
+            **parameters,
+            "n_fit": int(val_known.sum()),
+            "n_eval": int(known.sum()),
         }
+        metrics["ece"] = expected_calibration_error(calibrated[known], correct[known])
+        metrics["reliability"] = {
+            key: value.tolist() for key, value in reliability_curve(calibrated[known], correct[known]).items()
+        }
+        logger.info(
+            "calibrated ECE (known U/D only): %.4f | Platt a=%.3f b=%.3f",
+            metrics["ece"],
+            parameters["a"],
+            parameters["b"],
+        )
         if args.examples:
             plot_prediction_examples(outputs, output_dir / "examples", n=args.examples)
         import numpy as np
@@ -96,7 +124,7 @@ def main() -> None:
         else:
             final_predictions = outputs["predictions"]
         plot_confusion_matrix(outputs["labels"], final_predictions, output_dir / "fig_confusion_matrix")
-        plot_reliability(outputs["confidence"], correct, output_dir / "fig_calibration")
+        plot_reliability(calibrated[known], correct[known], output_dir / "fig_calibration")
     else:
         metrics = {}
         outputs = collect_predictions(model, loader, device, task="classify")

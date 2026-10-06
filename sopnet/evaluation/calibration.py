@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 import numpy as np
+from scipy.optimize import minimize
+from scipy.special import expit
 
 from sopnet.training.metrics import coverage_accuracy
 
@@ -51,3 +53,43 @@ def coverage_curve(
     thresholds: Optional[np.ndarray] = None,
 ) -> Dict[str, np.ndarray]:
     return coverage_accuracy(confidence, correct, thresholds)
+
+
+def fit_platt_scaling(
+    scores: np.ndarray,
+    correct: np.ndarray,
+    max_iter: int = 200,
+) -> Dict[str, float]:
+    """Fit ``P(correct) = sigmoid(a * score + b)`` by minimising log loss.
+
+    Field models emit an unnormalised peak magnitude, so it must be mapped to a
+    probability on validation before ECE/reliability are meaningful.
+    """
+    scores = np.asarray(scores, dtype=np.float64).ravel()
+    correct = np.asarray(correct, dtype=np.float64).ravel()
+    if scores.size == 0 or scores.size != correct.size:
+        raise ValueError("scores and correct must be non-empty and of equal length")
+    if np.unique(correct).size < 2:
+        raise ValueError("Platt scaling needs both correct and incorrect samples")
+
+    def negative_log_likelihood(parameters: np.ndarray) -> float:
+        logits = parameters[0] * scores + parameters[1]
+        return float(np.mean(np.logaddexp(0.0, logits) - correct * logits))
+
+    scale = float(np.std(scores)) or 1.0
+    initial = np.array([1.0 / scale, -float(np.mean(scores)) / scale])
+    result = minimize(
+        negative_log_likelihood,
+        initial,
+        method="L-BFGS-B",
+        options={"maxiter": max_iter},
+    )
+    if not result.success:
+        raise RuntimeError(f"Platt scaling did not converge: {result.message}")
+    return {"a": float(result.x[0]), "b": float(result.x[1])}
+
+
+def apply_platt_scaling(scores: np.ndarray, parameters: Dict[str, float]) -> np.ndarray:
+    scores = np.asarray(scores, dtype=np.float64)
+    logits = parameters["a"] * scores + parameters["b"]
+    return expit(logits)

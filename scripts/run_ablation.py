@@ -80,6 +80,24 @@ def main() -> None:
                 }
             )
 
+    if "E_full" not in args.experiments:
+        reused = REPO / "outputs/runs/sopnet_full_36/metrics.json"
+        if reused.exists():
+            summary = json.loads(reused.read_text())
+            rows.append(
+                {
+                    "experiment": "E_full",
+                    "config": EXPERIMENTS["E_full"],
+                    "best_epoch": summary.get("best_epoch"),
+                    "monitor": summary.get("monitor"),
+                    "best_metric": summary.get("best_metric"),
+                    "parameters": summary.get("parameters"),
+                    "peak_gpu_memory_gb": summary.get("peak_gpu_memory_gb"),
+                    "reused_from": "outputs/runs/sopnet_full_36",
+                }
+            )
+            print("reusing E_full metrics from outputs/runs/sopnet_full_36")
+
     output_csv = Path(args.output_csv)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(output_csv, index=False)

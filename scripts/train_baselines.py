@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -15,6 +16,7 @@ from sopnet.training.baselines import (  # noqa: E402
     BASELINE_SPECS,
     BaselineTrainConfig,
     build_baseline,
+    evaluate_baseline,
     prepare_baseline_input,
     train_baseline,
 )
@@ -51,6 +53,11 @@ def main() -> None:
     parser.add_argument("--limit-val", type=int, default=None)
     parser.add_argument("--seed", type=int, default=36)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-eval",
+        action="store_true",
+        help="skip the val/test evaluation after training",
+    )
     args = parser.parse_args()
 
     logger = get_logger("sopnet.baselines")
@@ -78,10 +85,20 @@ def main() -> None:
             limit_val=args.limit_val,
             logger=logger,
         )
-        (output_dir / "config.json").write_text(
-            __import__("json").dumps(asdict(config), indent=2, default=str)
-        )
+        (output_dir / "config.json").write_text(json.dumps(asdict(config), indent=2, default=str))
         logger.info("%s: best val F1 %.4f (epoch %d)", name, summary["best_f1"], summary["best_epoch"])
+
+        if not args.skip_eval:
+            for split in ("val", "test"):
+                metrics = evaluate_baseline(
+                    name,
+                    output_dir / "best.pt",
+                    Path(args.cache_dir),
+                    split=split,
+                    num_workers=args.num_workers,
+                )
+                (output_dir / f"{split}_metrics.json").write_text(json.dumps(metrics, indent=2, default=str))
+                logger.info("%s %s metrics: %s", name, split, metrics)
 
 
 if __name__ == "__main__":
