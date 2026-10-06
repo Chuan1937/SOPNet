@@ -54,17 +54,43 @@ python scripts/train.py --config configs/experiments/sopnet_full.yaml \
     --cache-dir outputs/cache_v1 --output outputs/runs/sopnet_full_36 \
     --epochs 50 --batch-size 512 --seed 36 --resume
 
-# 7. baselines on identical splits
-python scripts/train_baselines.py --cache-dir outputs/cache_v1 \
-    --baselines ross rpnet eqpolarity cfm diting_motion
+# 7-11. everything else in one detached pipeline (baselines -> ablation ->
+# re-evaluation -> robustness -> bootstrap -> tables):
+nohup setsid bash scripts/run_full_pipeline.sh 512 1024 50 50 \
+    > outputs/runs/pipeline2.log 2>&1 &
 
-# 8. test evaluation + ablation + robustness
+# ...or step by step:
+# 7. baselines on identical splits (50 epochs, early stopping patience 6;
+#    val + test metrics written per baseline)
+python scripts/train_baselines.py --cache-dir outputs/cache_v1 \
+    --baselines ross rpnet eqpolarity cfm diting_motion \
+    --epochs 50 --batch-size 512 --seed 36
+
+# 8. ablation A-D (E is reused from outputs/runs/sopnet_full_36)
+python scripts/run_ablation.py --cache-dir outputs/cache_v1 \
+    --experiments A_cls B_field C_jitter D_polarity --epochs 50 --batch-size 1024
+
+# 9. test evaluation (Platt-calibrated ECE on known U/D samples only)
 python scripts/evaluate.py --checkpoint outputs/runs/sopnet_full_36/best.pt \
     --cache-dir outputs/cache_v1 --split test --auto-threshold --examples 12
-python scripts/run_ablation.py --cache-dir outputs/cache_v1
+
+# 10. robustness and paired bootstrap vs the best baseline
 python scripts/run_robustness.py --cache-dir outputs/cache_v1 \
     --checkpoint sopnet=outputs/runs/sopnet_full_36/best.pt
+python scripts/run_bootstrap.py --cache-dir outputs/cache_v1 \
+    --checkpoint outputs/runs/sopnet_full_36/best.pt
+
+# 11. paper tables
+python scripts/make_paper_tables.py --runs-root outputs/runs outputs/ablation
 ```
+
+### Calibration semantics
+
+The field model emits a peak magnitude, not a probability, so ECE is computed
+after Platt scaling (`fit_platt_scaling`) fitted on validation and evaluated on
+labelled U/D test samples only. Selective-prediction numbers (`coverage_known`,
+`covered_accuracy_known`) likewise exclude X samples; the all-sample
+`coverage`/`covered_accuracy` are kept only for the U/D/X threshold analysis.
 
 ## Smoke-test acceptance gate
 
