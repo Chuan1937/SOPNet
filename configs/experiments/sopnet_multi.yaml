@@ -10,6 +10,8 @@ train:
   lambda_pol: 0.5
   lambda_inv: 0.1
 dataset:
-  jitter: [120, 280]
+  # The polarity branch reads the centre crop, so the window is not jittered;
+  # the field still predicts the onset shape and position at the centre.
+  jitter: null
 output:
   dir: outputs/runs/sopnet_multi_36

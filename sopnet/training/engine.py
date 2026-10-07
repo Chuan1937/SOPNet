@@ -120,7 +120,13 @@ class Trainer:
                 logits = self.model(x)
                 loss = self.classification_loss(logits, canonical_to_class(label))
             else:
-                output = self.model(x)
+                x_pol = batch.get("x_pol")
+                if x_pol is not None:
+                    x_pol = x_pol.to(self.device, non_blocking=True)
+                if self.config.task == "field_multi":
+                    output = self.model(x, x_pol=x_pol)
+                else:
+                    output = self.model(x)
                 if isinstance(output, tuple):
                     field, polarity_logits = output
                 else:
@@ -144,7 +150,10 @@ class Trainer:
                     and self.config.lambda_inv > 0
                     and np.random.random() < self.config.inv_batch_prob
                 ):
-                    inverted = self.model(-x)
+                    if self.config.task == "field_multi":
+                        inverted = self.model(-x, x_pol=x_pol)
+                    else:
+                        inverted = self.model(-x)
                     if isinstance(inverted, tuple):
                         inverted = inverted[0]
                     loss = loss + self.config.lambda_inv * self.inversion_loss(field, inverted)
@@ -230,7 +239,13 @@ class Trainer:
                 confidences.append(confidence)
             else:
                 x = batch["x"].to(self.device, non_blocking=True)
-                output = self.model(x)
+                x_pol = batch.get("x_pol")
+                if x_pol is not None:
+                    x_pol = x_pol.to(self.device, non_blocking=True)
+                if self.config.task == "field_multi":
+                    output = self.model(x, x_pol=x_pol)
+                else:
+                    output = self.model(x)
                 if isinstance(output, tuple):
                     field, polarity_logits = output
                 else:

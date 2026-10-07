@@ -15,6 +15,12 @@ def test_multitask_forward_shapes():
     assert logits.shape == (2, 2)
     assert float(field.abs().max()) <= 1.0
 
+    field, logits = model(torch.randn(2, 1, 400), x_pol=torch.randn(2, 1, 160))
+    assert logits.shape == (2, 2)
+    prediction = model.predict(torch.randn(2, 1, 400))
+    assert prediction["polarity"].shape == (2,)
+    assert prediction["p_position"].shape == (2,)
+
 
 def test_multitask_training_and_collect_predictions(synthetic_cache, tmp_path):
     cache_dir, manifest, index = synthetic_cache

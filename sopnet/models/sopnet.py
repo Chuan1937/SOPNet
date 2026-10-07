@@ -100,7 +100,7 @@ class SOPNet(nn.Module):
             features = fuse(torch.cat([features, skip], dim=1))
         return features
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, x_pol: torch.Tensor | None = None) -> torch.Tensor:
         bottleneck, skips = self.encoder(x)
         return torch.tanh(self.head(self._decode(bottleneck, skips)))
 
@@ -119,30 +119,66 @@ class SOPNet(nn.Module):
 
 
 class SOPNetMulti(SOPNet):
-    """SOPNet plus a polarity classification head on the shared encoder.
+    """SOPNet field plus a convolutional polarity branch on the onset crop.
 
-    The signed field still predicts the P onset (position and shape), while the
-    pooled encoder features feed a known-only binary head whose logits are the
-    polarity output. This decouples polarity accuracy from the regression
-    objective without giving up the field's localisation and inversion
-    consistency.
+    The signed field predicts the P onset (position and shape); a small
+    CFM-style CNN classifies polarity from a short window centred on the onset
+    (the training crop follows the labelled P, at inference the window centre).
+    Decoupling the two objectives keeps the field's localisation and inversion
+    consistency while giving polarity a direct classification objective.
     """
 
-    def __init__(self, config: SOPNetConfig | None = None, num_polarity_classes: int = 2):
+    def __init__(
+        self,
+        config: SOPNetConfig | None = None,
+        num_polarity_classes: int = 2,
+        crop_length: int = 160,
+    ):
         super().__init__(config)
         self.num_polarity_classes = int(num_polarity_classes)
-        self.pool = nn.AdaptiveAvgPool1d(1)
-        self.polarity_head = nn.Linear(self.config.bottleneck_channels, self.num_polarity_classes)
+        self.crop_length = int(crop_length)
+        self.polarity_branch = nn.Sequential(
+            nn.Conv1d(1, 32, kernel_size=5, padding=2, bias=False),
+            nn.BatchNorm1d(32),
+            nn.GELU(),
+            nn.Conv1d(32, 64, kernel_size=4),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.MaxPool1d(2),
+            nn.Conv1d(64, 128, kernel_size=3),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.MaxPool1d(2),
+            nn.Conv1d(128, 256, kernel_size=5, padding=2, bias=False),
+            nn.BatchNorm1d(256),
+            nn.GELU(),
+            nn.Conv1d(256, 128, kernel_size=3),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Dropout(0.2),
+            nn.Linear(128, self.num_polarity_classes),
+        )
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _polarity_input(self, x: torch.Tensor, x_pol: torch.Tensor | None) -> torch.Tensor:
+        if x_pol is not None:
+            return x_pol
+        total = x.shape[-1]
+        start = max(0, (total - self.crop_length) // 2)
+        return x[..., start : start + self.crop_length]
+
+    def forward(
+        self, x: torch.Tensor, x_pol: torch.Tensor | None = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         bottleneck, skips = self.encoder(x)
         field = torch.tanh(self.head(self._decode(bottleneck, skips)))
-        logits = self.polarity_head(self.pool(bottleneck).squeeze(-1))
+        logits = self.polarity_branch(self._polarity_input(x, x_pol))
         return field, logits
 
     @torch.no_grad()
-    def predict(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        field, logits = self.forward(x)
+    def predict(self, x: torch.Tensor, x_pol: torch.Tensor | None = None) -> Dict[str, torch.Tensor]:
+        field, logits = self.forward(x, x_pol=x_pol)
         position = field.abs().argmax(dim=-1)
         probabilities = torch.softmax(logits, dim=-1)
         class_index = probabilities.argmax(dim=-1)

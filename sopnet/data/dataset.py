@@ -23,6 +23,8 @@ from sopnet.data.cache import load_cache
 from sopnet.data.canonical import signed_field_target
 
 CACHE_POSITION = 300
+
+POLARITY_CROP_LENGTH = 160
 DEFAULT_WINDOW = 400
 DEFAULT_SIGMA = 10.0
 DEFAULT_JITTER: Tuple[int, int] = (120, 280)
@@ -145,9 +147,16 @@ class UnifiedPolarityDataset(Dataset):
         if self.augment is not None:
             window, label = augment_trace(window, label, self._rng, self.augment)
 
+        # Polarity branch input: centre crop of the window (P sits at the centre
+        # when jitter is disabled), so a P-window shift genuinely moves the
+        # onset inside this crop and robustness stays meaningful.
+        crop_start = (self.window_length - POLARITY_CROP_LENGTH) // 2
+        polarity_window = window[crop_start : crop_start + POLARITY_CROP_LENGTH].copy()
+
         target = signed_field_target(self.window_length, p_position, label, self.sigma)
         return {
             "x": torch.from_numpy(window).unsqueeze(0),
+            "x_pol": torch.from_numpy(polarity_window).unsqueeze(0),
             "target": torch.from_numpy(target),
             "label": torch.tensor(label, dtype=torch.long),
             "p_pick": torch.tensor(p_position, dtype=torch.long),

@@ -22,7 +22,7 @@ class SOPNetCls(nn.Module):
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Linear(self.config.bottleneck_channels, num_classes)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, x_pol: torch.Tensor | None = None) -> torch.Tensor:
         bottleneck, _ = self.encoder(x)
         pooled = self.pool(bottleneck).squeeze(-1)
         return self.classifier(pooled)
