@@ -1,0 +1,13 @@
+# SOPNet: signed field, no P jitter, field loss on labelled U/D samples only.
+# Jitter forces the model to learn localisation and polarity at once, which
+# slows polarity convergence by ~7 points at epoch 2 (0.90 vs 0.96); the main
+# model therefore trains the field at the fixed centre position.
+train:
+  task: field
+  unknown_weight: 0.0
+  lambda_pol: 0.5
+  lambda_inv: 0.1
+dataset:
+  jitter: null
+output:
+  dir: outputs/runs/sopnet_nojitter_36
