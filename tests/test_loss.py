@@ -71,3 +71,26 @@ def test_inversion_consistency_positive_otherwise():
     prediction = torch.randn(4, 1, 400)
     loss = InversionConsistencyLoss()(prediction, prediction)
     assert float(loss) > 0.0
+
+
+def test_weighted_field_loss_sample_weight_selects_known_samples():
+    torch.manual_seed(0)
+    targets = _targets()
+    prediction = torch.randn_like(targets)
+    loss_fn = WeightedSignedFieldLoss(beta=8.0)
+    weight = torch.tensor([1.0, 1.0, 0.0])
+
+    weighted = loss_fn(prediction, targets, sample_weight=weight)
+    known_only = loss_fn(prediction[:2], targets[:2])
+    assert torch.allclose(weighted, known_only, atol=1e-6)
+    assert not torch.allclose(weighted, loss_fn(prediction, targets))
+
+
+def test_weighted_field_loss_unit_weights_match_plain_loss():
+    torch.manual_seed(1)
+    targets = _targets()
+    prediction = torch.randn_like(targets)
+    loss_fn = WeightedSignedFieldLoss(beta=8.0)
+    plain = loss_fn(prediction, targets)
+    unit = loss_fn(prediction, targets, sample_weight=torch.ones(3))
+    assert torch.allclose(plain, unit, atol=1e-6)

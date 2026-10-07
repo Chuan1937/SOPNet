@@ -14,21 +14,35 @@ import torch.nn.functional as F
 
 
 class WeightedSignedFieldLoss(nn.Module):
-    """``mean((1 + beta * |target|) * SmoothL1(prediction, target))``."""
+    """``mean((1 + beta * |target|) * SmoothL1(prediction, target))``.
+
+    ``sample_weight`` (shape ``(batch,)``) rescales each sample's contribution,
+    which lets training down-weight unlabelled (unknown-polarity) samples whose
+    all-zero target would otherwise dominate the gradient.
+    """
 
     def __init__(self, beta: float = 8.0, smooth_l1_beta: float = 1.0):
         super().__init__()
         self.beta = float(beta)
         self.smooth_l1_beta = float(smooth_l1_beta)
 
-    def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        prediction: torch.Tensor,
+        target: torch.Tensor,
+        sample_weight: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         if prediction.dim() == 3 and prediction.shape[1] == 1:
             prediction = prediction.squeeze(1)
         if target.dim() == 3 and target.shape[1] == 1:
             target = target.squeeze(1)
         elementwise = F.smooth_l1_loss(prediction, target, reduction="none", beta=self.smooth_l1_beta)
         weights = 1.0 + self.beta * target.abs()
-        return (weights * elementwise).mean()
+        per_sample = (weights * elementwise).flatten(1).mean(dim=1)
+        if sample_weight is None:
+            return per_sample.mean()
+        normalizer = sample_weight.sum().clamp_min(1e-8)
+        return (per_sample * sample_weight).sum() / normalizer
 
 
 class PolarityConsistencyLoss(nn.Module):

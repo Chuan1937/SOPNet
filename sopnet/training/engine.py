@@ -43,6 +43,7 @@ class TrainConfig:
     lambda_pol: float = 0.5
     lambda_inv: float = 0.1
     inv_batch_prob: float = 0.25
+    unknown_weight: float = 1.0
     patience: int = 10
     num_workers: int = 8
     pin_memory: bool = True
@@ -118,7 +119,14 @@ class Trainer:
                 loss = self.classification_loss(logits, canonical_to_class(label))
             else:
                 field = self.model(x)
-                loss = self.field_loss(field, target)
+                sample_weight = None
+                if self.config.unknown_weight != 1.0:
+                    sample_weight = torch.where(
+                        label != UNKNOWN,
+                        torch.ones_like(label, dtype=field.dtype),
+                        torch.full_like(label, self.config.unknown_weight, dtype=field.dtype),
+                    )
+                loss = self.field_loss(field, target, sample_weight=sample_weight)
                 if self.config.lambda_pol > 0:
                     loss = loss + self.config.lambda_pol * self.polarity_loss(field, label)
                 if (

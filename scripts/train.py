@@ -62,6 +62,8 @@ def resolve_config(args) -> dict:
         config["train"]["lambda_pol"] = args.lambda_pol
     if args.lambda_inv is not None:
         config["train"]["lambda_inv"] = args.lambda_inv
+    if args.unknown_weight is not None:
+        config["train"]["unknown_weight"] = args.unknown_weight
     return config
 
 
@@ -117,6 +119,12 @@ def main() -> None:
     )
     parser.add_argument("--lambda-pol", type=float, default=None)
     parser.add_argument("--lambda-inv", type=float, default=None)
+    parser.add_argument(
+        "--unknown-weight",
+        type=float,
+        default=None,
+        help="per-sample weight of unknown-polarity samples in the field loss",
+    )
     parser.add_argument("--no-amp", action="store_true")
     parser.add_argument(
         "--resume",
