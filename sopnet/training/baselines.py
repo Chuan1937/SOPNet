@@ -127,7 +127,7 @@ def _predict(spec: BaselineSpec, output: torch.Tensor):
     if spec.output == "binary_du":
         predicted_class = output.argmax(dim=-1)
         predictions = torch.where(
-            predicted_class == 1, torch.full_like(predicted_class, UP), torch.full_like(predicted_class, DOWN)
+            predicted_class == 1, torch.full_like(predicted_class, DOWN), torch.full_like(predicted_class, UP)
         )
         confidence = torch.softmax(output, dim=-1).max(dim=-1).values
         return predictions, confidence
