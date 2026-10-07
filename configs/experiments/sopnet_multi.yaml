@@ -1,0 +1,15 @@
+# SOPNet-M: signed field (known-only) + known-only polarity classification head.
+# The field keeps P localisation and inversion consistency; the pooled encoder
+# head carries the polarity decision so accuracy is not capped by regression.
+model:
+  name: sopnet_multi
+train:
+  task: field_multi
+  lambda_cls: 1.0
+  unknown_weight: 0.0
+  lambda_pol: 0.5
+  lambda_inv: 0.1
+dataset:
+  jitter: [120, 280]
+output:
+  dir: outputs/runs/sopnet_multi_36

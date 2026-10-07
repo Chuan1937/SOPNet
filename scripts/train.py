@@ -219,7 +219,7 @@ def main() -> None:
         val_dataset, batch_size=trainer.config.batch_size, shuffle=False, num_workers=2
     )
     threshold = None
-    if trainer.config.task == "field":
+    if trainer.config.task in ("field", "field_multi"):
         threshold = choose_threshold(model, val_loader, trainer.device)
         logger.info("selected confidence threshold on validation: %.3f", threshold)
         val_metrics = evaluate_field(model, val_loader, trainer.device, threshold=threshold)

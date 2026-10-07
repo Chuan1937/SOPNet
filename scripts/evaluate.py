@@ -69,7 +69,7 @@ def main() -> None:
     logger.info("evaluating %d samples on split=%s", len(dataset), args.split)
 
     threshold = args.threshold
-    if task == "field":
+    if task in ("field", "field_multi"):
         val_dataset = UnifiedPolarityDataset(
             args.cache_dir, split="val", jitter=None, sigma=sigma, window_length=window
         )
@@ -90,31 +90,31 @@ def main() -> None:
         known = outputs["labels"] != UNKNOWN
         correct = outputs["predictions"] == outputs["labels"]
 
-        # The field model emits an unnormalised peak magnitude, not a
-        # probability. Fit Platt scaling on validation and report ECE on the
-        # calibrated probability over labelled U/D samples only.
-        val_outputs = collect_predictions(model, val_loader, device, task="field")
-        val_known = val_outputs["labels"] != UNKNOWN
-        parameters = fit_platt_scaling(
-            val_outputs["confidence"][val_known],
-            val_outputs["predictions"][val_known] == val_outputs["labels"][val_known],
-        )
-        calibrated = apply_platt_scaling(outputs["confidence"], parameters)
-        metrics["calibration"] = {
-            **parameters,
-            "n_fit": int(val_known.sum()),
-            "n_eval": int(known.sum()),
-        }
+        if task == "field_multi":
+            # The polarity head already emits softmax probabilities.
+            calibrated = outputs["confidence"]
+            metrics["calibration"] = {"type": "softmax", "n_eval": int(known.sum())}
+        else:
+            # The field model emits an unnormalised peak magnitude, not a
+            # probability. Fit Platt scaling on validation and report ECE on
+            # the calibrated probability over labelled U/D samples only.
+            val_outputs = collect_predictions(model, val_loader, device, task="field")
+            val_known = val_outputs["labels"] != UNKNOWN
+            parameters = fit_platt_scaling(
+                val_outputs["confidence"][val_known],
+                val_outputs["predictions"][val_known] == val_outputs["labels"][val_known],
+            )
+            calibrated = apply_platt_scaling(outputs["confidence"], parameters)
+            metrics["calibration"] = {
+                **parameters,
+                "n_fit": int(val_known.sum()),
+                "n_eval": int(known.sum()),
+            }
         metrics["ece"] = expected_calibration_error(calibrated[known], correct[known])
         metrics["reliability"] = {
             key: value.tolist() for key, value in reliability_curve(calibrated[known], correct[known]).items()
         }
-        logger.info(
-            "calibrated ECE (known U/D only): %.4f | Platt a=%.3f b=%.3f",
-            metrics["ece"],
-            parameters["a"],
-            parameters["b"],
-        )
+        logger.info("calibrated ECE (known U/D only): %.4f", metrics["ece"])
         if args.examples:
             plot_prediction_examples(outputs, output_dir / "examples", n=args.examples)
         import numpy as np

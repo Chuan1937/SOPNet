@@ -90,8 +90,7 @@ class SOPNet(nn.Module):
 
         self.head = nn.Conv1d(decoder_channels[-1], 1, kernel_size=1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        bottleneck, skips = self.encoder(x)
+    def _decode(self, bottleneck: torch.Tensor, skips: List[torch.Tensor]) -> torch.Tensor:
         features = bottleneck
         for step, index in enumerate(range(0, len(self.decoder_blocks), 2)):
             up = self.decoder_blocks[index]
@@ -99,7 +98,11 @@ class SOPNet(nn.Module):
             features = up(features)
             skip = skips[-2 - step]
             features = fuse(torch.cat([features, skip], dim=1))
-        return torch.tanh(self.head(features))
+        return features
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        bottleneck, skips = self.encoder(x)
+        return torch.tanh(self.head(self._decode(bottleneck, skips)))
 
     @torch.no_grad()
     def predict(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -113,3 +116,45 @@ class SOPNet(nn.Module):
         polarity = torch.sign(signed)
         polarity[confidence == 0] = 0
         return {"field": field, "p_position": position, "polarity": polarity, "confidence": confidence}
+
+
+class SOPNetMulti(SOPNet):
+    """SOPNet plus a polarity classification head on the shared encoder.
+
+    The signed field still predicts the P onset (position and shape), while the
+    pooled encoder features feed a known-only binary head whose logits are the
+    polarity output. This decouples polarity accuracy from the regression
+    objective without giving up the field's localisation and inversion
+    consistency.
+    """
+
+    def __init__(self, config: SOPNetConfig | None = None, num_polarity_classes: int = 2):
+        super().__init__(config)
+        self.num_polarity_classes = int(num_polarity_classes)
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.polarity_head = nn.Linear(self.config.bottleneck_channels, self.num_polarity_classes)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        bottleneck, skips = self.encoder(x)
+        field = torch.tanh(self.head(self._decode(bottleneck, skips)))
+        logits = self.polarity_head(self.pool(bottleneck).squeeze(-1))
+        return field, logits
+
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+        field, logits = self.forward(x)
+        position = field.abs().argmax(dim=-1)
+        probabilities = torch.softmax(logits, dim=-1)
+        class_index = probabilities.argmax(dim=-1)
+        polarity = torch.where(
+            class_index == 1,
+            torch.ones_like(class_index),
+            torch.full_like(class_index, -1),
+        )
+        return {
+            "field": field,
+            "p_position": position.squeeze(1),
+            "polarity": polarity,
+            "confidence": probabilities.max(dim=-1).values,
+            "logits": logits,
+        }

@@ -44,14 +44,33 @@ def collect_predictions(
             pred = np.array([CLASS_ORDER[c] for c in pred_class])
             confidence = torch.softmax(logits, dim=-1).max(dim=-1).values.cpu().numpy()
         else:
-            field = model(x)
-            magnitude = field.abs()
-            confidence_t, position = magnitude.max(dim=-1)
-            signed = field.gather(-1, position.unsqueeze(1)).squeeze(1).squeeze(-1)
-            pred = torch.sign(signed).cpu().numpy()
-            confidence = confidence_t.squeeze(-1).cpu().numpy()
+            output = model(x)
+            if isinstance(output, tuple):
+                field, polarity_logits = output
+            else:
+                field, polarity_logits = output, None
+            if polarity_logits is not None:
+                probabilities = torch.softmax(polarity_logits, dim=-1)
+                class_index = probabilities.argmax(dim=-1)
+                pred = (
+                    torch.where(
+                        class_index == 1,
+                        torch.full_like(class_index, UP),
+                        torch.full_like(class_index, DOWN),
+                    )
+                    .cpu()
+                    .numpy()
+                )
+                confidence = probabilities.max(dim=-1).values.cpu().numpy()
+                position = field.abs().argmax(dim=-1)
+            else:
+                magnitude = field.abs()
+                confidence_t, position = magnitude.max(dim=-1)
+                signed = field.gather(-1, position.unsqueeze(1)).squeeze(1).squeeze(-1)
+                pred = torch.sign(signed).cpu().numpy()
+                confidence = confidence_t.squeeze(-1).cpu().numpy()
+                pred[confidence == 0] = 0
             position = position.squeeze(-1)
-            pred[confidence == 0] = 0
             p_pred.append(position.cpu().numpy())
             p_true.append(batch["p_pick"].numpy())
         labels.append(label)

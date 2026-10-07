@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional
 
 from sopnet.models.classifier import SOPNetCls
-from sopnet.models.sopnet import SOPNet, SOPNetConfig
+from sopnet.models.sopnet import SOPNet, SOPNetConfig, SOPNetMulti
 
-__all__ = ["SOPNet", "SOPNetConfig", "SOPNetCls", "count_parameters", "build_model"]
+__all__ = ["SOPNet", "SOPNetConfig", "SOPNetCls", "SOPNetMulti", "count_parameters", "build_model"]
 
 
 def count_parameters(model) -> int:
@@ -26,6 +26,8 @@ def build_model(config: Optional[Dict[str, Any]] = None):
     sop_config = SOPNetConfig(**options)
     if name in ("sopnet_cls", "classifier", "cls"):
         return SOPNetCls(sop_config)
+    if name in ("sopnet_multi", "multitask", "multi"):
+        return SOPNetMulti(sop_config)
     if name == "sopnet":
         return SOPNet(sop_config)
     raise ValueError(f"Unknown model name '{name}'")

@@ -12,6 +12,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from sopnet.data.canonical import DOWN, UNKNOWN, UP
@@ -42,6 +43,7 @@ class TrainConfig:
     beta: float = 8.0
     lambda_pol: float = 0.5
     lambda_inv: float = 0.1
+    lambda_cls: float = 0.0
     inv_batch_prob: float = 0.25
     unknown_weight: float = 1.0
     patience: int = 10
@@ -118,7 +120,11 @@ class Trainer:
                 logits = self.model(x)
                 loss = self.classification_loss(logits, canonical_to_class(label))
             else:
-                field = self.model(x)
+                output = self.model(x)
+                if isinstance(output, tuple):
+                    field, polarity_logits = output
+                else:
+                    field, polarity_logits = output, None
                 sample_weight = None
                 if self.config.unknown_weight != 1.0:
                     sample_weight = torch.where(
@@ -129,14 +135,28 @@ class Trainer:
                 loss = self.field_loss(field, target, sample_weight=sample_weight)
                 if self.config.lambda_pol > 0:
                     loss = loss + self.config.lambda_pol * self.polarity_loss(field, label)
+                if polarity_logits is not None and self.config.lambda_cls > 0:
+                    loss = loss + self.config.lambda_cls * self._polarity_cross_entropy(
+                        polarity_logits, label
+                    )
                 if (
                     training
                     and self.config.lambda_inv > 0
                     and np.random.random() < self.config.inv_batch_prob
                 ):
                     inverted = self.model(-x)
+                    if isinstance(inverted, tuple):
+                        inverted = inverted[0]
                     loss = loss + self.config.lambda_inv * self.inversion_loss(field, inverted)
         return loss
+
+    def _polarity_cross_entropy(self, logits: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
+        """Binary cross-entropy on labelled U/D samples only (0=DOWN, 1=UP)."""
+        known = label != UNKNOWN
+        if not bool(known.any()):
+            return logits.sum() * 0.0
+        target = (label[known] == UP).long()
+        return F.cross_entropy(logits[known], target)
 
     def train_epoch(self, loader, epoch: int = 0) -> Dict[str, float]:
         self.model.train()
@@ -210,17 +230,36 @@ class Trainer:
                 confidences.append(confidence)
             else:
                 x = batch["x"].to(self.device, non_blocking=True)
-                field = self.model(x)
-                magnitude = field.abs()
-                confidence, position = magnitude.max(dim=-1)
-                signed = field.gather(-1, position.unsqueeze(1)).squeeze(1).squeeze(-1)
-                confidence = confidence.squeeze(-1)
-                position = position.squeeze(-1)
-                pred = torch.sign(signed).cpu().numpy()
-                pred[confidence.cpu().numpy() == 0] = 0
+                output = self.model(x)
+                if isinstance(output, tuple):
+                    field, polarity_logits = output
+                else:
+                    field, polarity_logits = output, None
+                position = field.abs().argmax(dim=-1).squeeze(-1)
+                if polarity_logits is not None:
+                    probabilities = torch.softmax(polarity_logits, dim=-1)
+                    class_index = probabilities.argmax(dim=-1)
+                    pred = (
+                        torch.where(
+                            class_index == 1,
+                            torch.ones_like(class_index),
+                            torch.full_like(class_index, DOWN),
+                        )
+                        .cpu()
+                        .numpy()
+                    )
+                    confidence = probabilities.max(dim=-1).values.cpu().numpy()
+                else:
+                    magnitude = field.abs()
+                    field_confidence, position = magnitude.max(dim=-1)
+                    signed = field.gather(-1, position.unsqueeze(1)).squeeze(1).squeeze(-1)
+                    confidence = field_confidence.squeeze(-1).cpu().numpy()
+                    position = position.squeeze(-1)
+                    pred = torch.sign(signed).cpu().numpy()
+                    pred[confidence == 0] = 0
                 labels.append(label)
                 predictions.append(pred)
-                confidences.append(confidence.cpu().numpy())
+                confidences.append(confidence)
                 p_pred.append(position.cpu().numpy())
                 p_true.append(batch["p_pick"].numpy())
 
@@ -258,7 +297,7 @@ class Trainer:
         total_steps = max(1, self.config.epochs * len(train_loader))
         self.scheduler = build_scheduler(self.optimizer, total_steps, self.config.warmup_ratio)
 
-        monitor = "known_accuracy" if self.config.task == "field" else "macro_f1"
+        monitor = "known_accuracy" if self.config.task in ("field", "field_multi") else "macro_f1"
         best = float("-inf")
         best_epoch = 0
         patience = 0
