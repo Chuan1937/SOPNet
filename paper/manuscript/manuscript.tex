@@ -460,7 +460,8 @@ each baseline are integrated into Table~\ref{tab:main}; all intervals exclude
 zero. Rejection rates at each model's official decision rule are reported for
 completeness in the supplementary table. SOPNet's validation-tuned rejection
 threshold retains \TBD{99.5}\% of known records at a marginal accuracy cost,
-and the calibrated confidence achieves an ECE of \TBD{0.03}.
+and the calibrated confidence achieves an ECE of \TBD{0.031}
+(Figure~\ref{fig:calibration}).
 
 \begin{table}[t]
   \centering
@@ -575,8 +576,15 @@ accuracy; we return to this in Section~\ref{sec:discussion}.
   \label{fig:shift}
 \end{figure}
 
-\TBD{Figure 5 (calibration / selective prediction) from
-outputs/paper/figures/.}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{../../outputs/paper/figures/fig5_calibration.pdf}
+  \caption{Confidence calibration and selective prediction for SOPNet on
+  known up/down test records: reliability diagram with and without Platt
+  scaling (left) and accuracy as a function of retained coverage when
+  thresholding the field-peak confidence (right).}
+  \label{fig:calibration}
+\end{figure}
 
 \section{Discussion}
 \label{sec:discussion}
