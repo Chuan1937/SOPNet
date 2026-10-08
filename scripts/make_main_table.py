@@ -62,9 +62,46 @@ def standard_test_metrics(name: str, run_dir: Path) -> dict:
     return row
 
 
+def _first(metrics: dict, *keys):
+    for key in keys:
+        if metrics.get(key) is not None:
+            return metrics[key]
+    return None
+
+
+def build_ablation_table(ablation_root: Path, sopnet_run: Path, output_dir: Path) -> None:
+    sources = {
+        "A_cls_ud": ablation_root / "A_cls_ud" / "test_metrics.json",
+        "B_field": ablation_root / "B_field" / "test_metrics.json",
+        "C_polarity": ablation_root / "C_polarity" / "test_metrics.json",
+        "D_full": sopnet_run / "test_metrics.json",
+    }
+    rows = []
+    for name, path in sources.items():
+        metrics = _load_json(path)
+        if not metrics:
+            continue
+        rows.append(
+            {
+                "experiment": name,
+                "accuracy": _first(metrics, "known_accuracy", "accuracy"),
+                "macro_f1": _first(metrics, "macro_f1_ud", "macro_f1"),
+                "precision": _first(metrics, "known_precision", "precision"),
+                "recall": _first(metrics, "known_recall", "recall"),
+                "mcc": _first(metrics, "known_mcc", "mcc"),
+                "n_known": _first(metrics, "n_known", "known_support"),
+            }
+        )
+    if rows:
+        pd.DataFrame(rows).to_csv(output_dir / "ablation_results.csv", index=False)
+        print()
+        print(pd.DataFrame(rows).to_string(index=False))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-root", default="outputs/runs")
+    parser.add_argument("--ablation-root", default="outputs/ablation")
     parser.add_argument("--cache-dir", default="outputs/cache_v1")
     parser.add_argument("--predictions-dir", default="outputs/paper/predictions")
     parser.add_argument("--output-dir", default="outputs/paper/tables")
@@ -154,6 +191,8 @@ def main() -> None:
         pd.DataFrame(source_rows).to_csv(output_dir / "per_source_results.csv", index=False)
     if protocol_rows:
         pd.DataFrame(protocol_rows).to_csv(output_dir / "baseline_protocol.csv", index=False)
+
+    build_ablation_table(Path(args.ablation_root), runs_root / "sopnet_nojitter_36", output_dir)
 
     print(main.to_string(index=False))
     if source_rows:

@@ -19,14 +19,28 @@
   3. rpnet（官方类别顺序）
   4. eqpolarity（官方 600 输入，预计 17-30 h）
 - [ ] 重训完成后生成 `main_results.csv`、`per_source_results.csv`、
-  `baseline_protocol.csv` 与逐样本预测（`outputs/paper/predictions/`）。
+  `baseline_protocol.csv` 与逐样本预测（`outputs/paper/predictions/`）——
+  已由自动收尾链 `g1_finish.sh` 接管。
 
 日志：`outputs/runs/g1_pipeline.log`。
 
 ### 下一步（与 G1 并行，纯代码）
 
-- [ ] G2：新增 `classify_ud` 任务（SOPNet-Cls 二分类、known-only 掩码 CE），
-  准备 A/B/C 三个消融配置（D 复用 `sopnet_nojitter_36`）。
-- [ ] G3：`run_robustness.py` 扩展为六模型统一评估（固定子集、相同噪声）。
-- [ ] 统计：事件级聚类配对 bootstrap。
-- [ ] `run_full_pipeline.sh` 改为严格失败退出模式。
+- [x] G2：新增 `classify_ud` 任务（SOPNet-Cls 二分类、known-only 掩码 CE），
+  准备 A/B/C 三个消融配置（D 复用 `sopnet_nojitter_36`）；CPU 冒烟验证三组配置
+  端到端训练成功（1 epoch/2000 样本）。
+- [x] G3：`run_robustness.py` 扩展为六模型统一评估（固定子集、相同噪声；
+  偏移网格 −0.2~+0.2 s，SNR clean~−5 dB；输出合并表与六模型曲线）。
+- [x] 统计：事件级聚类配对 bootstrap（按 event_key 整组重采样）。
+- [x] `run_full_pipeline.sh` 改为严格失败退出模式（任何步骤失败即中止）。
+- [x] 逐样本预测保存（SOPNet `--save-predictions`）+ `make_main_table.py`
+  （main_results / per_source_results / baseline_protocol / 消融测试表）。
+
+### 自动收尾链
+
+- `g1_finish.sh`（22:20 挂起）：等待重训队列结束后自动执行
+  1. 校验无失败步骤且 5 个基线 test_metrics + 预测齐备；
+  2. SOPNet 测试集重评估并保存逐样本预测；
+  3. 汇总论文表；
+  4. 聚类配对 bootstrap。
+  日志：`outputs/runs/g1_finish.log`。
