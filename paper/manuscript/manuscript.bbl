@@ -1,0 +1,126 @@
+\begin{thebibliography}{16}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Chakraborty et~al.(2022)]{chakraborty2022polarcap}
+M.~Chakraborty et~al.
+\newblock Polarcap --- a deep learning approach for first motion polarity
+  classification of earthquake waveforms.
+\newblock \emph{Artificial Intelligence in Geosciences}, 3:\penalty0 46--52,
+  2022.
+\newblock \doi{10.1016/j.aiig.2022.06.001}.
+
+\bibitem[Chen et~al.(2024{\natexlab{a}})]{chen2024eqpolarity}
+Y.~Chen et~al.
+\newblock Deep learning for p-wave first-motion polarity determination and its
+  application to focal mechanism inversion.
+\newblock \emph{IEEE Transactions on Geoscience and Remote Sensing},
+  2024{\natexlab{a}}.
+
+\bibitem[Chen et~al.(2024{\natexlab{b}})]{chen2024txed}
+Y.~Chen et~al.
+\newblock Txed: The texas earthquake dataset for ai.
+\newblock \emph{Seismological Research Letters}, 95\penalty0 (4):\penalty0
+  2013--2022, 2024{\natexlab{b}}.
+\newblock \doi{10.1785/0220230327}.
+
+\bibitem[Cheng et~al.(2023)Cheng, Ross, Hauksson, and Ben-Zion]{cheng2023focal}
+Y.~Cheng, Zachary~E. Ross, Egill Hauksson, and Y.~Ben-Zion.
+\newblock Refined earthquake focal mechanism catalog for southern california
+  derived with deep learning algorithms.
+\newblock \emph{Journal of Geophysical Research: Solid Earth}, 128:\penalty0
+  e2022JB025975, 2023.
+\newblock \doi{10.1029/2022JB025975}.
+
+\bibitem[Cohen and Welling(2016)]{cohen2016group}
+Taco Cohen and Max Welling.
+\newblock Group equivariant convolutional networks.
+\newblock In \emph{Proceedings of the 33rd International Conference on Machine
+  Learning}, pages 2990--2999, 2016.
+
+\bibitem[Han et~al.(2025)Han, Kim, and Sheen]{han2025rpnet}
+J.~Han, S.~Kim, and D.-H. Sheen.
+\newblock Rpnet: Robust p-wave first-motion polarity determination using deep
+  learning.
+\newblock \emph{Seismological Research Letters}, 2025.
+
+\bibitem[Hardebeck and Shearer(2002)]{hardebeck2002hash}
+Jeanne~L. Hardebeck and Peter~M. Shearer.
+\newblock A new method for determining first-motion focal mechanisms.
+\newblock \emph{Bulletin of the Seismological Society of America}, 92\penalty0
+  (6):\penalty0 2264--2276, 2002.
+\newblock \doi{10.1785/0120010200}.
+
+\bibitem[Messuti et~al.(2023)]{messuti2023cfm}
+G.~Messuti et~al.
+\newblock Cfm: a convolutional neural network for first-motion polarity
+  classification of seismic records in volcanic and tectonic areas.
+\newblock \emph{Frontiers in Earth Science}, 11:\penalty0 1223686, 2023.
+\newblock \doi{10.3389/feart.2023.1223686}.
+
+\bibitem[Michelini et~al.(2021)]{michelini2021instance}
+Alberto Michelini et~al.
+\newblock Instance: The italian seismic dataset for machine learning.
+\newblock \emph{Earth System Science Data}, 13\penalty0 (12):\penalty0
+  5509--5544, 2021.
+\newblock \doi{10.5194/essd-13-5509-2021}.
+
+\bibitem[Mousavi et~al.(2020)Mousavi, Ellsworth, Zhu, Chuang, and
+  Beroza]{mousavi2020eqtransformer}
+S.~Mostafa Mousavi, William~L. Ellsworth, Weiqiang Zhu, Lindsay~Y. Chuang, and
+  Gregory~C. Beroza.
+\newblock Earthquake transformer---an attentive deep-learning model for
+  simultaneous earthquake detection and phase picking.
+\newblock \emph{Nature Communications}, 11:\penalty0 3952, 2020.
+\newblock \doi{10.1038/s41467-020-17591-w}.
+
+\bibitem[Ni et~al.(2023)]{ni2023pnw}
+Y.~Ni et~al.
+\newblock Curated pacific northwest ai-ready seismic dataset.
+\newblock \emph{EarthArXiv}, 2023.
+\newblock \doi{10.31223/X5P94P}.
+
+\bibitem[Platt(1999)]{platt1999calibration}
+John Platt.
+\newblock Probabilistic outputs for support vector machines and comparisons to
+  regularized likelihood methods.
+\newblock \emph{Advances in Large Margin Classifiers}, pages 61--74, 1999.
+
+\bibitem[Ross et~al.(2018)Ross, Meier, and Hauksson]{ross2018}
+Zachary~E. Ross, Men-Andrin Meier, and Egill Hauksson.
+\newblock P wave arrival picking and first-motion polarity determination with
+  deep learning.
+\newblock \emph{Journal of Geophysical Research: Solid Earth}, 123\penalty0
+  (6):\penalty0 5120--5129, 2018.
+\newblock \doi{10.1029/2018JB015510}.
+
+\bibitem[Zhao et~al.(2023{\natexlab{a}})Zhao, Xiao, Chen, and
+  Fang]{zhao2023diting}
+Ming Zhao, Zhuowei Xiao, Shumei Chen, and Lihua Fang.
+\newblock Diting: A large-scale chinese seismic benchmark dataset for
+  artificial intelligence in seismology.
+\newblock \emph{Earthquake Science}, 36\penalty0 (2):\penalty0 84--94,
+  2023{\natexlab{a}}.
+\newblock \doi{10.1016/j.eqs.2022.01.022}.
+
+\bibitem[Zhao et~al.(2023{\natexlab{b}})Zhao, Xiao, Zhang,
+  et~al.]{zhao2023ditingmotion}
+Ming Zhao, Zhuowei Xiao, Miao Zhang, et~al.
+\newblock Ditingmotion: A deep-learning first-motion-polarity classifier and
+  its application to focal mechanism inversion.
+\newblock \emph{Frontiers in Earth Science}, 11:\penalty0 1103914,
+  2023{\natexlab{b}}.
+\newblock \doi{10.3389/feart.2023.1103914}.
+
+\bibitem[Zhu and Beroza(2019)]{zhu2019phasenet}
+Weiqiang Zhu and Gregory~C. Beroza.
+\newblock Phasenet: a deep-neural-network-based seismic arrival-time picking
+  method.
+\newblock \emph{Geophysical Journal International}, 216\penalty0 (1):\penalty0
+  261--273, 2019.
+\newblock \doi{10.1093/gji/ggy423}.
+
+\end{thebibliography}

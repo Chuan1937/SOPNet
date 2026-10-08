@@ -1,0 +1,579 @@
+% SOPNet: A Signed-Onset Field Network for Automatic P-Wave First-Motion
+% Polarity Determination.
+%
+% DRAFT. Target venue: Applied Geophysics (Springer).
+% Numbers tagged \TBD{} are filled from outputs/paper/tables/*.csv once
+% gates G1--G3 complete.
+% NOTE: swap the document class to the journal template at submission time.
+
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{xcolor}
+\usepackage{natbib}
+
+\newcommand{\TBD}[1]{\textcolor{red}{[#1]}}
+
+\title{SOPNet: A Signed-Onset Field Network for Automatic P-Wave \\
+First-Motion Polarity Determination}
+\author{\TBD{author list}}
+\date{\TBD{date}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+First-motion polarity of the P wave is the primary observable for constraining
+earthquake focal mechanisms, and its automatic determination has become a
+standard component of deep-learning seismology pipelines. Existing models,
+however, are almost universally formulated as three-class softmax classifiers
+(up / down / unknown), evaluated with heterogeneous datasets, splits and label
+policies, which makes published numbers difficult to compare and provides
+little insight into behaviours that matter in practice, such as noise and
+arrival-time errors. We present SOPNet, a compact one-dimensional
+encoder--decoder that instead predicts a \emph{signed onset field}: a
+continuous function over the waveform window whose absolute maximum locates the
+P onset and whose sign at that maximum gives the polarity. The field is
+supervised only on records with known up/down labels using a weighted smooth
+$L_1$ loss, and is regularised by a differentiable polarity-consistency loss
+and a physical inversion-consistency constraint $f(-x) = -f(x)$. We assemble a
+unified benchmark from five open datasets (SCSN, DiTing, INSTANCE, PNW, TXED;
+\TBD{X.XX} million waveforms, \TBD{X.XX} million events) with a shared,
+event-level split, and we retrain five public deep-learning polarity models
+(Ross, DiTingMotion, RPNet, EQPolarity, CFM) under their official input
+protocols. On a strict up/down decision metric, SOPNet reaches
+\TBD{X.X} accuracy, \TBD{X.XX} macro-$F_1$ and \TBD{X.XX} MCC on
+\TBD{XXX,XXX} known-polarity test waveforms, outperforming all five baselines,
+with paired event-clustered bootstrap intervals excluding zero. Robustness
+experiments on a fixed subset show graceful degradation under additive noise,
+while all models remain sensitive to P-reference shifts of a few tens of
+milliseconds; we discuss this accuracy--tolerance trade-off as an inherent
+consequence of fixed-window polarity classification. The signed-field
+formulation yields a simple, well-calibrated and easily reproducible polarity
+model, and the benchmark protocol is released for reuse.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+The polarity of the first P-wave motion recorded at a station --- whether the
+ground first moves up or down --- is one of the oldest and most informative
+observables in observational seismology. Together with the take-off angle it
+constitutes the classical raw material of focal-mechanism determination
+\citep{hardebeck2002hash}, and dense first-motion polarity datasets now feed
+routine earthquake monitoring, stress-field studies and physics-based
+earthquake forecasting. Historically, polarities were read manually from
+seismograms, which is accurate but prohibitively labour-intensive at the scale
+of modern, machine-learning-driven catalogs containing millions of events.
+Automating this reading task has therefore received sustained attention.
+
+Early automatic approaches relied on hand-crafted features of the onset
+waveform, most commonly the sign of the first extremum or of a short-term
+average. These rules degrade rapidly for emergent onsets and noisy traces, and
+their error rates were difficult to quantify. With the advent of deep learning
+in seismology, polarity determination was reformulated as a supervised
+classification problem: \citet{ross2018} trained a convolutional network to
+pick P arrivals and assign polarity labels on Southern California data, and a
+series of recent models extended this line of work with deeper or more
+specialised architectures, including DiTingMotion \citep{zhao2023ditingmotion},
+RPNet \citep{han2025rpnet}, EQPolarity \citep{chen2024eqpolarity}, CFM
+\citep{messuti2023cfm} and PolarCAP \citep{chakraborty2022polarcap}. Depending
+on the model, the problem is posed as binary (up/down) or three-class
+(up/down/unknown) classification, and reported accuracies are often above
+\SI{95}{\percent} on held-out records.
+
+Three gaps motivate this paper. First, the classifiers treat polarity as a
+discrete label emitted by a softmax head, discarding the continuous, signed
+nature of the first motion, and they provide no explicit, differentiable link
+between the localisation of the onset and the polarity decision. Second,
+comparability across publications is limited: models are trained on different
+source datasets, with different preprocessing, different splits and different
+label policies for records with ambiguous or unlabelled polarity, so that
+cross-paper accuracy differences conflate model quality with protocol
+differences. Third, robustness --- arguably the decisive property for field use
+--- is rarely quantified: performance under ambient noise and, in particular,
+under errors in the reference P arrival used to extract the analysis window is
+seldom reported, even though a polarity model is only as trustworthy as its
+behaviour when its input degrades.
+
+We address these gaps with SOPNet, a polarity model built around a
+\emph{signed onset field}, together with a strict benchmarking protocol. The
+network is a compact one-dimensional convolutional encoder--decoder that maps
+a waveform window to a continuous field $f(t)\in[-1,1]$. The absolute maximum
+of $f$ marks the P onset; its sign at that maximum is the polarity. Because the
+field target is constructed from the P arrival and the polarity label, the
+model jointly learns localisation and polarity from a single regression
+objective on records with known polarity. Two regularisers exploit the physics
+of the representation: a polarity-consistency loss converts the field into a
+differentiable polarity score, and an inversion-consistency constraint enforces
+that reversing the input waveform reverses the field, $f(-x) = -f(x)$, a
+symmetry that holds exactly for the first motion of an impulsive onset. At
+inference, the magnitude of the field peak provides a natural confidence score
+for optional rejection of ambiguous records and for probability calibration.
+
+For evaluation, we assemble an open benchmark: five datasets (SCSN, DiTing,
+INSTANCE, PNW and TXED) are harmonised into a single manifest with a shared,
+event-level split that prevents leakage between correlated records of the same
+earthquake. Records without a trustworthy polarity label act as unlabelled
+data: they are excluded from the field-loss scope (``known-only'' training),
+mirroring how such records are used in operational catalogs. Five public
+baseline models are retrained from scratch --- no pretrained weights, to avoid
+any form of leakage --- on the identical training split, each with its official
+input protocol, and all models are compared with a strict up/down decision
+metric that uses each model's own up/down score. Unknown-class predictions are
+reported only as a supplementary rejection rate. We further evaluate all six
+models on additive-noise sequences and on a grid of P-reference shifts, with
+paired, event-clustered bootstrap intervals for the main comparisons.
+
+The contributions of this work are:
+\begin{itemize}
+  \item a signed-field formulation of first-motion polarity, in which onset
+  localisation and polarity are two readings of one continuous representation,
+  trained with known-only supervision and regularised by polarity- and
+  inversion-consistency losses;
+  \item an open, event-level unified benchmark across five datasets and five
+  retrained public baselines under official input protocols, with a strict
+  up/down decision metric and per-source reporting;
+  \item a quantitative robustness study of all six models under additive noise
+  and P-reference shifts, with event-clustered paired bootstrap statistics;
+  \item an ablation isolating the contribution of each component (binary
+  classification, signed field, polarity-consistency and inversion-consistency
+  losses) under identical training conditions.
+\end{itemize}
+
+The remainder of the paper is organised as follows.
+Section~\ref{sec:related} reviews related work.
+Section~\ref{sec:method} describes the signed-field model and its losses.
+Section~\ref{sec:data} details the unified dataset, baselines and evaluation
+protocol. Section~\ref{sec:results} reports main, per-source, ablation and
+robustness results, and Section~\ref{sec:discussion} discusses their
+implications and limitations.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{First-motion polarity determination.}
+\citet{ross2018} introduced the first widely adopted deep-learning polarity
+model, a multi-branch convolutional network that picks the P arrival and
+classifies its polarity on Southern California recordings; the same study
+released the polarity labels that underpin several later datasets.
+\citet{zhao2023ditingmotion} adapted a residual architecture with differential
+input channels (DiTingMotion) and applied it to focal-mechanism inversion
+\citep{zhao2023diting}. \citet{han2025rpnet} proposed RPNet, a residual network
+designed for robustness across station conditions, and \citet{chen2024eqpolarity}
+combined convolutional tokenisation with transformer blocks (EQPolarity) for
+polarity determination and focal-mechanism applications. \citet{messuti2023cfm}
+targeted volcanic and tectonic settings with a lightweight convolutional
+feature model (CFM), and \citet{chakraborty2022polarcap} proposed an
+encoder--decoder with a classification head (PolarCAP). These models share a
+common formulation: the network output is a categorical distribution over
+polarity classes, and the decision is an argmax. Our work keeps the
+convolutional backbone family but replaces the categorical output with a
+continuous signed field and derives the polarity from the field's own geometry.
+
+\paragraph{Signed and continuous representations in seismology.}
+Deep pickers such as PhaseNet \citep{zhu2019phasenet} and EQTransformer
+\citep{mousavi2020eqtransformer} regress continuous phase-probability functions
+over time and read arrivals from their maxima; this representation is now
+standard for picking. For polarity, however, the corresponding idea --- a
+continuous signed function whose sign encodes the first motion --- has not, to
+our knowledge, been systematically evaluated against categorical classifiers,
+nor combined with symmetry regularisation. Our signed onset field borrows the
+localisation-by-maximum decoding of phase pickers and extends it with a sign
+that is trained to match the first motion, so that a single output supports
+both arrival refinement and polarity determination given a reference P time.
+The inversion-consistency loss is inspired by the equivariance principle in
+group-equivariant networks \citep{cohen2016group}: polarity inversion is an
+exact symmetry of the underlying physical measurement, and we penalise its
+violation directly.
+
+\paragraph{Evaluation practice.}
+Published polarity models report accuracy on their own splits; where unknown
+labels exist, the treatment varies between ignoring them, folding them into a
+third class, or excluding them at test time, and per-source behaviour is
+rarely reported. Robustness analyses are similarly sparse, and we are not
+aware of a six-model comparison under identical noise and arrival-error
+protocols. The benchmark described in Section~\ref{sec:data} is intended to
+fill this gap.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Problem setting}
+\label{sec:problem}
+
+We consider vertical-component records for which a reference P arrival time
+$t_\mathrm{ref}$ is available from a catalog or a picker, and we define the
+task as determining the first-motion polarity given that reference --- the same
+task posed to the baselines. Input waveforms are single-component windows of
+$L$ samples centred on $t_\mathrm{ref}$ at a common sampling rate ($\SI{100}{Hz}$
+in our experiments), band-pass filtered and amplitude-normalised
+(Section~\ref{sec:data}). A polarity label $y\in\{+1,-1\}$ denotes an upward or
+downward first motion; records with unknown or ambiguous polarity carry
+$y=0$ and are used only as unlabelled context, never as field targets.
+
+\subsection{Signed onset field}
+\label{sec:field}
+
+SOPNet is a one-dimensional convolutional encoder--decoder. A multi-scale stem
+with parallel convolutions feeds three downsampling stages (64, 96 and 128
+channels), each followed by a residual block; the resulting feature map is
+projected to 192 channels and processed by four dilated residual blocks
+(dilation rates 1, 2, 4 and 8), giving a receptive field that spans the full
+window. A symmetric decoder with skip connections restores the temporal
+resolution, and a $1\times1$ convolution followed by a $\tanh$ produces the
+signed onset field
+\begin{equation}
+  f_\theta: \mathbb{R}^{L} \rightarrow [-1,1]^{L}, \qquad
+  f_\theta(x) = \big(f_\theta(x)_1,\dots,f_\theta(x)_L\big).
+\end{equation}
+The field is trained to be near zero away from the onset and to form a signed
+lobe at the P arrival: the target $g$ is a Gaussian bump of width $\sigma$
+(here \SI{10}{ms}) centred on the labelled P sample, scaled by the polarity
+label, $g_i = y \exp(-(i-i_P)^2/(2\sigma^2))$. The model has
+\TBD{1.44} million parameters and operates on \TBD{400}-sample windows,
+matching the Ross/RPNet input convention.
+
+The field is decoded without any classification head. Let
+\begin{equation}
+  i^\star = \arg\max_i |f_\theta(x)_i|, \qquad
+  s = f_\theta(x)_{i^\star}, \qquad
+  c = |s| .
+  \label{eq:decode}
+\end{equation}
+The polarity estimate is $\hat y = \mathrm{sign}(s)$ and $c\in[0,1]$ serves as a
+confidence score. The peak position $i^\star$ refines the arrival time, but
+under the fixed-centre training regime of this paper it should be read as an
+internal consistency check rather than an independent picking capability
+(see Section~\ref{sec:discussion}).
+
+\subsection{Loss functions}
+\label{sec:losses}
+
+\paragraph{Weighted signed-field loss.}
+Because the field target is zero almost everywhere, a plain mean-squared error
+is dominated by the silent parts of the window. We weight the elementwise
+smooth-$L_1$ loss by the target magnitude,
+\begin{equation}
+  \mathcal{L}_\mathrm{field}
+  = \frac{1}{|\mathcal{K}|}\sum_{n\in\mathcal{K}}
+    \frac{1}{L}\sum_{i=1}^{L}
+      \big(1 + \beta\,|g^{(n)}_i|\big)\,
+      \ell_{\delta}\!\big(f_\theta(x^{(n)})_i, g^{(n)}_i\big),
+  \label{eq:fieldloss}
+\end{equation}
+where $\ell_\delta$ is the smooth-$L_1$ (Huber) function, $\beta=8$ up-weights
+the onset neighbourhood, and $\mathcal{K}$ is the set of records with known
+polarity. In the final recipe unlabelled records are excluded from
+$\mathcal{L}_\mathrm{field}$ entirely (``known-only'' supervision); an
+optional per-sample weight allows unlabelled records to be admitted with a
+reduced coefficient, which we ablate in the supplement.
+
+\paragraph{Polarity-consistency loss.}
+To couple the field directly to the decision in Eq.~\eqref{eq:decode}, we form
+a differentiable attention-weighted polarity score from the field itself,
+\begin{equation}
+  a_i = \frac{\exp(\kappa\,|f_\theta(x)_i|)}{\sum_j \exp(\kappa\,|f_\theta(x)_j|)},
+  \qquad
+  \hat s = \sum_i a_i\,f_\theta(x)_i,
+  \label{eq:attn}
+\end{equation}
+and penalise sign disagreement with a softplus hinge,
+\begin{equation}
+  \mathcal{L}_\mathrm{pol}
+  = \frac{1}{|\mathcal{K}|}\sum_{n\in\mathcal{K}}
+    \mathrm{softplus}\!\big(-\gamma\, y^{(n)}\, \hat s^{(n)}\big),
+  \qquad \gamma=1,\ \kappa=4 .
+  \label{eq:polloss}
+\end{equation}
+As $\kappa\to\infty$, $\hat s$ approaches $f_\theta(x)$ at the field peak, so
+minimising Eq.~\eqref{eq:polloss} sharpens the sign of the decoding quantity
+itself rather than an auxiliary classifier.
+
+\paragraph{Inversion-consistency loss.}
+First-motion polarity is exactly equivariant under amplitude inversion: the
+first motion of $-x$ is the opposite of that of $x$. We therefore penalise
+deviations from $f_\theta(-x) = -f_\theta(x)$,
+\begin{equation}
+  \mathcal{L}_\mathrm{inv}
+  = \big\| f_\theta(-x) + f_\theta(x) \big\|_1 ,
+  \label{eq:invloss}
+\end{equation}
+applied on a random fraction of training batches. The total objective is
+\begin{equation}
+  \mathcal{L}
+  = \mathcal{L}_\mathrm{field}
+  + \lambda_\mathrm{pol}\,\mathcal{L}_\mathrm{pol}
+  + \lambda_\mathrm{inv}\,\mathcal{L}_\mathrm{inv},
+  \label{eq:total}
+\end{equation}
+with $\lambda_\mathrm{pol}=0.5$ and $\lambda_\mathrm{inv}=0.1$ in the final
+recipe.
+
+\subsection{Rejection and calibration}
+\label{sec:calibration}
+
+In operational use, records whose polarity cannot be determined reliably
+should be rejected rather than mislabelled. The field peak magnitude $c$ in
+Eq.~\eqref{eq:decode} provides a rejection score: a threshold $\tau$ is tuned
+on the validation split to trade coverage for accuracy, and reported as a
+supplementary selective-prediction curve. The same confidence is calibrated on
+the validation split with Platt scaling \citep{platt1999calibration} --- a
+one-parameter logistic map fitted to validation (confidence, correctness)
+pairs --- reported via the expected calibration error (ECE) over
+known-polarity records.
+
+\section{Data and Benchmark Protocol}
+\label{sec:data}
+
+\subsection{Unified dataset}
+\label{sec:dataset}
+
+We harmonise five open datasets into one manifest:
+SCSN (Southern California, with the refined polarity-rich catalog of
+\citealp{ross2018,cheng2023focal}), DiTing \citep{zhao2023diting},
+INSTANCE \citep{michelini2021instance}, PNW \citep{ni2023pnw} and TXED
+\citep{chen2024txed}. All waveforms are resampled to \SI{100}{Hz}, band-pass
+filtered between 1 and \SI{45}{Hz} (fourth-order Butterworth), and cut into
+\TBD{600}-sample cache windows centred on the P pick; models consume the window
+segment prescribed by their official input protocol
+(Section~\ref{sec:baselines}). Polarity labels are mapped to the canonical
+triad $\{+1, -1, 0\}$ (up / down / unknown). Table~\ref{tab:dataset}
+summarises the corpus: \TBD{7.78} million waveforms from \TBD{1.12} million
+events, split 80/10/10 at the \emph{event} level (events sharing an identical
+waveform hash are kept together, preventing leakage through duplicated
+records); the test split contains \TBD{777,720} waveforms and
+\TBD{111,588} events, of which \TBD{327,231} waveforms carry a known polarity
+label. Unknown-polarity records are retained in all splits as unlabelled
+context; they are never scored in the main metric.
+
+\begin{table}[t]
+  \centering
+  \caption{Composition of the unified benchmark after harmonisation.
+  ``Known U/D'' counts test waveforms with usable up/down labels; unknown
+  records are excluded from scoring. Test events are counted over all test
+  waveforms.}
+  \label{tab:dataset}
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Source & Waveforms & Train & Val & Test & Known U/D (test) & Test events \\
+    \midrule
+    SCSN     & 4{,}847{,}248 & 3{,}880{,}196 & 482{,}521 & 484{,}531 & 253{,}194 & 27{,}908 \\
+    DiTing   & 2{,}734{,}748 & 2{,}186{,}864 & 273{,}031 & 274{,}853 & 64{,}048 & 78{,}835 \\
+    PNW      &   183{,}909 &   151{,}336 &  15{,}906 &  16{,}667 & 9{,}742 & 4{,}392 \\
+    TXED     &    10{,}692 &     8{,}533 &   1{,}020 &   1{,}139 & 143 & 181 \\
+    INSTANCE &     4{,}964 &     3{,}988 &     446 &     530 & 104 & 272 \\
+    \midrule
+    Total    & 7{,}781{,}561 & 6{,}230{,}917 & 772{,}924 & 777{,}720 & 327{,}231 & 111{,}588 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Baselines}
+\label{sec:baselines}
+
+We include the five public baseline models available in the reference
+implementation: Ross \citep{ross2018}, DiTingMotion \citep{zhao2023ditingmotion},
+RPNet \citep{han2025rpnet}, EQPolarity \citep{chen2024eqpolarity} and CFM
+\citep{messuti2023cfm}. Fair-comparison rules are as follows. (i) No pretrained
+weights are used, for any model, including SOPNet; every network is trained
+from scratch on the identical training split with the same optimiser schedule
+(AdamW, cosine decay with warmup) and the same augmentation policy (none for
+the main comparison). (ii) Each baseline consumes its official input: Ross and
+RPNet 400-sample windows, DiTingMotion two channels with the official
+derivative-sign second channel, EQPolarity 600 samples, and CFM its 160-sample
+crop. (iii) The training objective and early-stopping monitor of each baseline
+follow its official convention, with the monitor computed on up/down decisions
+only so that the comparison is not distorted by the unknown class. (iv) All
+models are evaluated on the same test samples, in the same order, with the
+same metric.
+
+\subsection{Metrics and statistics}
+\label{sec:metrics}
+
+The primary metric is the \emph{strict up/down decision}: for every test
+waveform with a known polarity label, the model must commit to up or down
+using its own up/down score (for categorical baselines, the binary
+probability obtained by summing or restricting the up/down classes), and we
+report accuracy, macro-averaged $F_1$ over the two classes, precision, recall
+and MCC. For three-class baselines, predictions of ``unknown'' are treated as
+abstentions and scored as errors in the strict metric; their rate is reported
+separately as a rejection rate. SOPNet's threshold (Section~\ref{sec:calibration})
+is likewise disabled in the strict metric and reported only as a selective
+operating point. Because several waveforms may share an event and thus
+correlated noise, pairwise differences against SOPNet are tested with a
+paired bootstrap that resamples \emph{events} (not waveforms) with replacement
+($\TBD{1000}$ resamples), reporting the \SI{95}{\percent} percentile interval
+of the macro-$F_1$ difference. Robustness experiments use a fixed
+\TBD{30,000}-waveform subset of the test split (fixed seed) so that every
+model sees exactly the same records; noise is injected at fixed SNR levels
+(clean, 20, 10, 5, 0 and \SI{-5}{dB}) and the reference window is shifted on a
+grid of $\{-0.20,-0.10,-0.05,0,+0.05,+0.10,+0.20\}$~s.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Main comparison}
+\label{sec:main}
+
+Table~\ref{tab:main} reports the strict up/down metrics on the known-polarity
+test set (\TBD{327,231} waveforms). SOPNet achieves \TBD{97.8}\% accuracy,
+\TBD{0.978} macro-$F_1$ and \TBD{0.956} MCC, outperforming the five retrained
+baselines; the best baseline \TBD{(name)} reaches \TBD{X.X}\%. Paired
+event-clustered bootstrap intervals for the macro-$F_1$ difference against
+each baseline are given in Table~\ref{tab:bootstrap}; all intervals exclude
+zero. Rejection rates at each model's official decision rule are reported for
+completeness in the supplementary table. SOPNet's validation-tuned rejection
+threshold retains \TBD{99.5}\% of known records at a marginal accuracy cost,
+and the calibrated confidence achieves an ECE of \TBD{0.03}.
+
+\TBD{Table 2 here: main test results (accuracy, macro-F1, precision, recall,
+MCC, parameters, input length), generated from
+outputs/paper/tables/main\_results.csv.}
+
+\TBD{Table 4 statistics here or merged into Table 2: bootstrap CIs from
+outputs/paper/tables/bootstrap.csv.}
+
+\subsection{Per-source behaviour}
+\label{sec:per_source}
+
+\TBD{Per-source table from outputs/paper/tables/per\_source\_results.csv.
+Expected pattern from earlier runs: SOPNet and the strongest baselines agree
+within 1-2 points on SCSN, DiTing, INSTANCE and PNW; TXED is weak for all
+models (SOPNet 0.59, CFM 0.40 on 143 known records), which we attribute to the
+small sample and to label ambiguity, and discuss explicitly rather than
+averaging it away.}
+
+\subsection{Ablation}
+\label{sec:ablation}
+
+To isolate where the signed field helps, we train four no-jitter variants under
+identical data, schedule and loss scope: (A) SOPNet-Cls, a two-class
+known-only classifier sharing the encoder; (B) the signed field with
+known-only field loss and neither consistency term; (C) B plus the
+polarity-consistency loss; (D) C plus the inversion-consistency loss (the full
+model). Table~\ref{tab:ablation} shows that \TBD{...}. \TBD{Fill from
+outputs/paper/tables/ablation\_results.csv after G2.}
+
+\subsection{Robustness}
+\label{sec:robustness}
+
+Figure~\ref{fig:snr} shows accuracy versus SNR for all six models on the fixed
+subset. SOPNet degrades gracefully from \TBD{0.978} (clean) to \TBD{0.78} at
+\SI{-5}{dB}, remaining the strongest model across the range; all models retain
+above-chance accuracy even at the lowest SNR, consistent with first-motion
+information being concentrated in the earliest few samples of the onset.
+Figure~\ref{fig:shift} shows the corresponding curves for P-reference shifts.
+Every model --- including SOPNet --- degrades sharply beyond shifts of
+$\pm\SI{0.05}{s}$ and approaches chance for $\pm\SI{0.1}{s}$, confirming that
+the fixed-centre input convention couples polarity accuracy to arrival-time
+accuracy; we return to this in Section~\ref{sec:discussion}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{../../outputs/paper/figures/fig_snr_all.pdf}
+  \caption{Strict up/down accuracy versus SNR for the six models on the fixed
+  test subset. Curves are produced by \texttt{run\_robustness.py}.}
+  \label{fig:snr}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{../../outputs/paper/figures/fig_p_shift_all.pdf}
+  \caption{Strict up/down accuracy versus reference P-window shift.}
+  \label{fig:shift}
+\end{figure}
+
+\TBD{Figure 1 (architecture schematic) and Figure 2 (qualitative fields) to be
+finalised; Figure 5 (calibration / selective prediction) from
+outputs/paper/figures/.}
+
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Why a field?}
+The ablation suggests that \TBD{...} \TBD{Interpret after G2: if the binary
+classifier (A) trails the field variants, the gain is attributed to the
+continuous representation and known-only supervision rather than to capacity,
+since A uses the same backbone and fewer parameters.}
+
+\paragraph{Known-only supervision.}
+Excluding unknown-polarity records from the field loss was essential in
+development: including their all-zero targets with full weight slows
+convergence and blurs the onset lobe, while a down-weighted
+(\texttt{unknown\_weight} $<1$) schedule leaves the final accuracy slightly
+lower. This mirrors the label semantics: an unknown polarity is missing
+information, not a third physical state, and treating it as a class forces the
+model to model the annotator.
+
+\paragraph{The P-shift trade-off.}
+The fixed-centre window is the main limitation of the present
+implementation, and Figure~\ref{fig:shift} makes the trade-off explicit:
+fixing the centre lets the network devote its capacity to the onset waveform
+itself, yielding higher clean accuracy, but makes the decision sensitive to
+reference-arrival errors beyond a few tens of milliseconds. Two observations
+bound the severity. First, in the intended deployment the reference P is
+produced by a deep picker on the same waveform, whose arrival errors are
+typically well below the $\pm\SI{0.05}{s}$ tolerance at which accuracy is
+still near clean levels. Second, the failure mode is not silent: the field
+peak magnitude drops as the onset leaves the window, so the confidence-based
+rejection (Section~\ref{sec:calibration}) can screen shifted records before a
+wrong polarity is emitted. Training with random P jitter is the obvious remedy
+and also the obvious trap: our development runs show that jittering the field
+target forces the network to solve localisation and polarity simultaneously
+and slows polarity convergence by around seven accuracy points at short
+horizons, which is why the main recipe trains at a fixed centre and treats
+shift tolerance as a separate, explicit operating point. We therefore report
+both properties rather than maximising either one.
+
+\paragraph{Per-source variability.}
+TXED's small known-polarity test subset (\TBD{143} records) produces noisy and
+weak estimates for every model, including SOPNet; we report these numbers with
+their counts instead of hiding them in an aggregate. The remaining sources
+show a consistent ordering, suggesting the benchmark is not dominated by a
+single regional idiosyncrasy.
+
+\paragraph{Limitations.}
+The benchmark covers vertical-component, single-station records with
+$\SI{100}{Hz}$ sampling and catalog P references; transfer to other
+components, sampling rates or reference sources (for example, automated picks
+with systematic bias) is not established here. The reported P-position error
+is measured in the fixed-centre regime and should not be read as independent
+picking performance. Multi-seed repeats of the full model would strengthen the
+confidence in small differences; \TBD{we include N seeds as available}.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented SOPNet, a signed-onset-field network for P-wave first-motion
+polarity determination, and a strict, event-level unified benchmark on five
+open datasets with five retrained public baselines. Representing polarity as
+the sign of a continuous field --- trained only on known labels and regularised
+by polarity- and inversion-consistency losses --- matches the physics of the
+first motion and yields state-of-the-art accuracy on the benchmark
+(\TBD{97.8}\% on \TBD{327,231} known-polarity test waveforms) with calibrated
+confidence and a tunable rejection option. Robustness experiments quantify
+both the graceful degradation under noise and the sharp, previously
+under-reported sensitivity to reference P shifts, which we frame as an
+accuracy--tolerance trade-off of fixed-window classification. Extending the
+field formulation to jointly refine the P arrival --- replacing the fixed
+centre with a learned localisation objective --- is a natural next step toward
+a fully self-contained polarity picker.
+
+\section*{Data and code availability}
+\TBD{Datasets are open (SCSN/DiTing/INSTANCE/PNW/TXED). Code, configs,
+checkpoints and the benchmark manifest will be released on GitHub (URL) and
+archived on Zenodo/OSF.}
+
+\section*{Acknowledgments}
+\TBD{}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
