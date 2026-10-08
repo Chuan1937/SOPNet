@@ -219,7 +219,8 @@ $y=0$ and are used only as unlabelled context, never as field targets.
 \subsection{Signed onset field}
 \label{sec:field}
 
-SOPNet is a one-dimensional convolutional encoder--decoder. A multi-scale stem
+SOPNet is a one-dimensional convolutional encoder--decoder
+(Figure~\ref{fig:architecture}). A multi-scale stem
 with parallel convolutions feeds three downsampling stages (64, 96 and 128
 channels), each followed by a residual block; the resulting feature map is
 projected to 192 channels and processed by four dilated residual blocks
@@ -237,6 +238,18 @@ lobe at the P arrival: the target $g$ is a Gaussian bump of width $\sigma$
 label, $g_i = y \exp(-(i-i_P)^2/(2\sigma^2))$. The model has
 \TBD{1.44} million parameters and operates on \TBD{400}-sample windows,
 matching the Ross/RPNet input convention.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{../../outputs/paper/figures/fig1_architecture.pdf}
+  \caption{The SOPNet architecture. A multi-scale stem (parallel kernels of
+  size 5/11/21) and a three-stage strided encoder with residual blocks feed a
+  dilated bottleneck (rates 1, 2, 4, 8); a symmetric decoder with skip
+  connections produces the full-resolution signed field
+  $f(t)\in[-1,1]$. The P onset is read as the field maximum and the polarity
+  as its sign; no classification head is used.}
+  \label{fig:architecture}
+\end{figure}
 
 The field is decoded without any classification head. Let
 \begin{equation}
@@ -426,18 +439,34 @@ test set (\TBD{327,231} waveforms). SOPNet achieves \TBD{97.8}\% accuracy,
 \TBD{0.978} macro-$F_1$ and \TBD{0.956} MCC, outperforming the five retrained
 baselines; the best baseline \TBD{(name)} reaches \TBD{X.X}\%. Paired
 event-clustered bootstrap intervals for the macro-$F_1$ difference against
-each baseline are given in Table~\ref{tab:bootstrap}; all intervals exclude
+each baseline are integrated into Table~\ref{tab:main}; all intervals exclude
 zero. Rejection rates at each model's official decision rule are reported for
 completeness in the supplementary table. SOPNet's validation-tuned rejection
 threshold retains \TBD{99.5}\% of known records at a marginal accuracy cost,
 and the calibrated confidence achieves an ECE of \TBD{0.03}.
 
-\TBD{Table 2 here: main test results (accuracy, macro-F1, precision, recall,
-MCC, parameters, input length), generated from
-outputs/paper/tables/main\_results.csv.}
-
-\TBD{Table 4 statistics here or merged into Table 2: bootstrap CIs from
-outputs/paper/tables/bootstrap.csv.}
+\begin{table}[t]
+  \centering
+  \caption{Strict up/down results on the known-polarity test set
+  (\TBD{327,231} waveforms). ``$\Delta$ macro-$F_1$'' is the paired
+  event-clustered bootstrap difference against SOPNet with its
+  \SI{95}{\percent} percentile interval; all models are retrained on the
+  identical training split with their official input protocols.}
+  \label{tab:main}
+  \small
+  \begin{tabular}{lcccccc}
+    \toprule
+    Model & Accuracy & Macro-$F_1$ & Precision & Recall & MCC & $\Delta F_1$ [95\% CI] \\
+    \midrule
+    SOPNet (this work) & \TBD{0.978} & \TBD{0.978} & \TBD{0.977} & \TBD{0.975} & \TBD{0.956} & --- \\
+    Ross               & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    DiTingMotion       & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    RPNet              & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    EQPolarity         & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    CFM                & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Per-source behaviour}
 \label{sec:per_source}
@@ -449,6 +478,26 @@ models (SOPNet 0.59, CFM 0.40 on 143 known records), which we attribute to the
 small sample and to label ambiguity, and discuss explicitly rather than
 averaging it away.}
 
+\begin{table}[t]
+  \centering
+  \caption{Per-source strict accuracy on known-polarity test waveforms;
+  counts are given in parentheses for the smallest sources.}
+  \label{tab:source}
+  \small
+  \begin{tabular}{lccccc}
+    \toprule
+    Model & SCSN & DiTing & PNW & INSTANCE & TXED \\
+    \midrule
+    SOPNet       & \TBD{0.979} & \TBD{0.980} & \TBD{0.953} & \TBD{0.971} & \TBD{0.587} \\
+    Ross         & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    DiTingMotion & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    RPNet        & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    EQPolarity   & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
+    CFM          & \TBD{0.974} & \TBD{0.978} & \TBD{0.913} & \TBD{0.933} & \TBD{0.399} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
 \subsection{Ablation}
 \label{sec:ablation}
 
@@ -457,8 +506,28 @@ identical data, schedule and loss scope: (A) SOPNet-Cls, a two-class
 known-only classifier sharing the encoder; (B) the signed field with
 known-only field loss and neither consistency term; (C) B plus the
 polarity-consistency loss; (D) C plus the inversion-consistency loss (the full
-model). Table~\ref{tab:ablation} shows that \TBD{...}. \TBD{Fill from
-outputs/paper/tables/ablation\_results.csv after G2.}
+model). Table~\ref{tab:ablation} shows that \TBD{one-sentence interpretation
+after G2}. \TBD{Fill from outputs/paper/tables/ablation\_results.csv after G2.}
+
+\begin{table}[t]
+  \centering
+  \caption{Component ablation (no jitter; matched known-only loss scope; same
+  backbone, data and schedule for all variants). A: binary classification
+  sharing the encoder; B: signed field; C: B plus the polarity-consistency
+  loss; D: C plus the inversion-consistency loss (full model).}
+  \label{tab:ablation}
+  \small
+  \begin{tabular}{lcccc}
+    \toprule
+    Variant & Accuracy & Macro-$F_1$ & MCC & Parameters \\
+    \midrule
+    A: SOPNet-Cls            & \TBD{} & \TBD{} & \TBD{} & \TBD{1.23M} \\
+    B: signed field          & \TBD{} & \TBD{} & \TBD{} & \TBD{1.44M} \\
+    C: $+$ polarity loss     & \TBD{} & \TBD{} & \TBD{} & \TBD{1.44M} \\
+    D: $+$ inversion (full)  & \TBD{} & \TBD{} & \TBD{} & \TBD{1.44M} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Robustness}
 \label{sec:robustness}
@@ -489,9 +558,8 @@ accuracy; we return to this in Section~\ref{sec:discussion}.
   \label{fig:shift}
 \end{figure}
 
-\TBD{Figure 1 (architecture schematic) and Figure 2 (qualitative fields) to be
-finalised; Figure 5 (calibration / selective prediction) from
-outputs/paper/figures/.}
+\TBD{Figure 2 (qualitative fields) to be finalised; Figure 5 (calibration /
+selective prediction) from outputs/paper/figures/.}
 
 \section{Discussion}
 \label{sec:discussion}
