@@ -126,7 +126,21 @@ class UnifiedPolarityDataset(Dataset):
             target_position = int(self._rng.integers(low, high + 1))
             start = CACHE_POSITION - target_position
         start += self.p_shift_samples
-        return int(np.clip(start, 0, 600 - self.window_length))
+        return int(start)
+
+    def _read_window(self, waveform: np.ndarray, start: int) -> np.ndarray:
+        """Read ``window_length`` samples starting at ``start``, zero-padded.
+
+        ``start`` may be negative or push the window past the cache edge when a
+        P-reference shift is requested; samples outside the cache are zero.
+        """
+        window = np.zeros(self.window_length, dtype=np.float32)
+        read_from = max(0, start)
+        read_to = min(waveform.shape[0], start + self.window_length)
+        if read_to > read_from:
+            offset = read_from - start
+            window[offset : offset + (read_to - read_from)] = waveform[read_from:read_to]
+        return window
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         label = int(self.labels[index])
@@ -141,7 +155,7 @@ class UnifiedPolarityDataset(Dataset):
                 self._trim(0)
 
         start = self._crop_start()
-        window = waveform[start : start + self.window_length].copy()
+        window = self._read_window(waveform, start)
         p_position = CACHE_POSITION - start
 
         if self.augment is not None:

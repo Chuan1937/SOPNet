@@ -75,6 +75,45 @@ def test_p_shift_moves_reference_window(synthetic_cache):
     assert dataset[0]["p_pick"].item() == 150
 
 
+def test_p_shift_applies_to_full_cache_window(synthetic_cache):
+    """Regression: with ``window_length=600`` the shift used to be clipped away."""
+    cache_dir, manifest, index = synthetic_cache
+    reference = UnifiedPolarityDataset(
+        cache_dir, split=None, jitter=None, window_length=600, manifest=manifest, index=index
+    )[0]["x"][0].numpy()
+
+    plus = UnifiedPolarityDataset(
+        cache_dir,
+        split=None,
+        jitter=None,
+        window_length=600,
+        p_shift_samples=20,
+        manifest=manifest,
+        index=index,
+    )
+    item_plus = plus[0]
+    assert item_plus["x"].shape == (1, 600)
+    assert item_plus["p_pick"].item() == 280
+    shifted = item_plus["x"][0].numpy()
+    assert np.allclose(shifted[:580], reference[20:])
+    assert np.all(shifted[580:] == 0.0)
+
+    minus = UnifiedPolarityDataset(
+        cache_dir,
+        split=None,
+        jitter=None,
+        window_length=600,
+        p_shift_samples=-20,
+        manifest=manifest,
+        index=index,
+    )
+    item_minus = minus[0]
+    assert item_minus["p_pick"].item() == 320
+    shifted_minus = item_minus["x"][0].numpy()
+    assert np.allclose(shifted_minus[20:], reference[:580])
+    assert np.all(shifted_minus[:20] == 0.0)
+
+
 def test_max_samples_subsets_deterministically(synthetic_cache):
     cache_dir, manifest, index = synthetic_cache
     first = UnifiedPolarityDataset(

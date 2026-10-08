@@ -100,9 +100,7 @@ def main() -> None:
     dataset.close()
 
     field_np = fields.squeeze(1).numpy()
-    predictions = np.where(
-        field_np[np.arange(len(field_np)), np.abs(field_np).argmax(1)] >= 0, UP, DOWN
-    )
+    predictions = np.where(field_np[np.arange(len(field_np)), np.abs(field_np).argmax(1)] >= 0, UP, DOWN)
     picks = pick_examples(labels, confidence, predictions)
     if not picks:
         raise SystemExit("no examples found; increase --max-samples")

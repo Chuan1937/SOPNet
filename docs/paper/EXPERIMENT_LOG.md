@@ -60,3 +60,11 @@
   （CFM 预测文件冒烟通过；待 SOPNet 预测 npz 生成后出正式图）。
 - [x] `docs/paper/RESULT_VERIFICATION.md`：数字追溯文档（已验证/待生成清单、
   复现命令、核验规则）。
+
+### G3 前置修复（23:40）
+
+- 冒烟发现并修复数据管线 bug：`p_shift_samples` 对 `window_length=600` 的输入被
+  `np.clip(start, 0, 600-W)` 裁掉（W=600 时恒等于 0），**导致基线模型的 P 偏移
+  实验完全无效**。修复为：窗口起点允许越界，缓存外样本零填充（SOPNet 400 窗口
+  行为不变）。新增回归测试 `test_p_shift_applies_to_full_cache_window`。
+  修复后冒烟：CFM 在 +0.2 s 偏移下 0.975 → 0.40，与 SOPNet 量级一致。
