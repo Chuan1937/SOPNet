@@ -25,7 +25,7 @@ def build_model(config: Optional[Dict[str, Any]] = None):
     }
     sop_config = SOPNetConfig(**options)
     if name in ("sopnet_cls", "classifier", "cls"):
-        return SOPNetCls(sop_config)
+        return SOPNetCls(sop_config, num_classes=int(model_config.get("num_classes", 3)))
     if name in ("sopnet_multi", "multitask", "multi"):
         return SOPNetMulti(sop_config)
     if name == "sopnet":

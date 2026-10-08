@@ -119,6 +119,9 @@ class Trainer:
             if self.config.task == "classify":
                 logits = self.model(x)
                 loss = self.classification_loss(logits, canonical_to_class(label))
+            elif self.config.task == "classify_ud":
+                logits = self.model(x)
+                loss = self._polarity_cross_entropy(logits, label)
             else:
                 x_pol = batch.get("x_pol")
                 if x_pol is not None:
@@ -228,11 +231,23 @@ class Trainer:
             total += float(loss.detach())
             count += 1
             label = batch["label"].numpy()
-            if self.config.task == "classify":
+            if self.config.task in ("classify", "classify_ud"):
                 x = batch["x"].to(self.device, non_blocking=True)
                 logits = self.model(x)
-                pred_class = logits.argmax(dim=-1).cpu().numpy()
-                pred = np.array([CLASS_ORDER[c] for c in pred_class])
+                if self.config.task == "classify":
+                    pred_class = logits.argmax(dim=-1).cpu().numpy()
+                    pred = np.array([CLASS_ORDER[c] for c in pred_class])
+                else:
+                    class_index = logits.argmax(dim=-1)
+                    pred = (
+                        torch.where(
+                            class_index == 1,
+                            torch.ones_like(class_index),
+                            torch.full_like(class_index, DOWN),
+                        )
+                        .cpu()
+                        .numpy()
+                    )
                 confidence = torch.softmax(logits, dim=-1).max(dim=-1).values.cpu().numpy()
                 labels.append(label)
                 predictions.append(pred)
@@ -312,7 +327,9 @@ class Trainer:
         total_steps = max(1, self.config.epochs * len(train_loader))
         self.scheduler = build_scheduler(self.optimizer, total_steps, self.config.warmup_ratio)
 
-        monitor = "known_accuracy" if self.config.task in ("field", "field_multi") else "macro_f1"
+        monitor = (
+            "known_accuracy" if self.config.task in ("field", "field_multi", "classify_ud") else "macro_f1"
+        )
         best = float("-inf")
         best_epoch = 0
         patience = 0

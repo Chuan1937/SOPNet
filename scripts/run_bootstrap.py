@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sopnet.data.canonical import DOWN, UNKNOWN, UP  # noqa: E402
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader  # noqa: E402
-from sopnet.evaluation.bootstrap import paired_bootstrap_difference  # noqa: E402
+from sopnet.evaluation.bootstrap import paired_bootstrap_difference_clustered  # noqa: E402
 from sopnet.evaluation.evaluate import collect_predictions  # noqa: E402
 from sopnet.models import build_model  # noqa: E402
 from sopnet.training.baselines import collect_baseline_predictions  # noqa: E402
@@ -59,11 +59,20 @@ def main() -> None:
     y_true = outputs["labels"][known]
     sopnet_pred = outputs["predictions"][known]
 
+    manifest = pd.read_parquet(Path(args.cache_dir) / "manifest.parquet", columns=["sample_id", "event_key"])
+    event_map = dict(zip(manifest["sample_id"], manifest["event_key"]))
+    groups = np.array([event_map[s] for s in dataset.sample_ids])[known]
+
     def score(y: np.ndarray, p: np.ndarray) -> float:
         return macro_f1(y, p, labels=(DOWN, UP))
 
     sopnet_f1 = score(y_true, sopnet_pred)
-    logger.info("SOPNet macro-F1 (U/D, n=%d): %.4f", len(y_true), sopnet_f1)
+    logger.info(
+        "SOPNet macro-F1 (U/D, n=%d samples, %d events): %.4f",
+        len(y_true),
+        len(np.unique(groups)),
+        sopnet_f1,
+    )
 
     if args.baselines:
         names = list(args.baselines)
@@ -91,8 +100,8 @@ def main() -> None:
         if not np.array_equal(baseline["labels"], outputs["labels"]):
             raise RuntimeError(f"{name}: baseline predictions are not aligned with SOPNet")
         baseline_pred = np.where(baseline["ud_score"] >= 0, UP, DOWN)[known]
-        result = paired_bootstrap_difference(
-            y_true, sopnet_pred, baseline_pred, metric=score, n_resamples=args.n_resamples
+        result = paired_bootstrap_difference_clustered(
+            y_true, sopnet_pred, baseline_pred, groups=groups, n_resamples=args.n_resamples
         )
         row = {
             "baseline": name,

@@ -43,6 +43,19 @@ def collect_predictions(
             pred_class = logits.argmax(dim=-1).cpu().numpy()
             pred = np.array([CLASS_ORDER[c] for c in pred_class])
             confidence = torch.softmax(logits, dim=-1).max(dim=-1).values.cpu().numpy()
+        elif task == "classify_ud":
+            logits = model(x)
+            class_index = logits.argmax(dim=-1)
+            pred = (
+                torch.where(
+                    class_index == 1,
+                    torch.full_like(class_index, UP),
+                    torch.full_like(class_index, DOWN),
+                )
+                .cpu()
+                .numpy()
+            )
+            confidence = torch.softmax(logits, dim=-1).max(dim=-1).values.cpu().numpy()
         else:
             output = model(x)
             if isinstance(output, tuple):

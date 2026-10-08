@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sopnet.data.canonical import UNKNOWN  # noqa: E402
+from sopnet.data.canonical import DOWN, UNKNOWN, UP  # noqa: E402
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader  # noqa: E402
 from sopnet.evaluation.calibration import (  # noqa: E402
     apply_platt_scaling,
@@ -28,6 +28,7 @@ from sopnet.evaluation.evaluate import (  # noqa: E402
 )
 from sopnet.models import build_model  # noqa: E402
 from sopnet.training.checkpoint import load_checkpoint  # noqa: E402
+from sopnet.training.metrics import binary_metrics, macro_f1  # noqa: E402
 from sopnet.utils.logging import get_logger  # noqa: E402
 
 
@@ -127,9 +128,28 @@ def main() -> None:
         plot_reliability(calibrated[known], correct[known], output_dir / "fig_calibration")
     else:
         metrics = {}
-        outputs = collect_predictions(model, loader, device, task="classify")
-        metrics["accuracy"] = float((outputs["predictions"] == outputs["labels"]).mean())
-        metrics["n"] = int(len(outputs["labels"]))
+        if task == "classify_ud":
+            outputs = collect_predictions(model, loader, device, task="classify_ud")
+            known = outputs["labels"] != UNKNOWN
+            metrics = {"n": int(len(outputs["labels"])), "n_known": int(known.sum())}
+            if known.any():
+                metrics.update(binary_metrics(outputs["labels"][known], outputs["predictions"][known]))
+                metrics["macro_f1_ud"] = macro_f1(
+                    outputs["labels"][known], outputs["predictions"][known], labels=(DOWN, UP)
+                )
+                correct = outputs["predictions"] == outputs["labels"]
+                metrics["ece"] = expected_calibration_error(outputs["confidence"][known], correct[known])
+                metrics["reliability"] = {
+                    key: value.tolist()
+                    for key, value in reliability_curve(outputs["confidence"][known], correct[known]).items()
+                }
+            plot_confusion_matrix(
+                outputs["labels"], outputs["predictions"], output_dir / "fig_confusion_matrix"
+            )
+        else:
+            outputs = collect_predictions(model, loader, device, task="classify")
+            metrics["accuracy"] = float((outputs["predictions"] == outputs["labels"]).mean())
+            metrics["n"] = int(len(outputs["labels"]))
 
     save_metrics(metrics, output_dir / f"{args.split}_metrics.json")
     logger.info("metrics: %s", {k: v for k, v in metrics.items() if not isinstance(v, dict)})

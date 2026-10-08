@@ -1,0 +1,10 @@
+# 消融 B：带符号场（known-only 场损失；无极性损失、无反转一致性、无 jitter）
+train:
+  task: field
+  lambda_pol: 0.0
+  lambda_inv: 0.0
+  unknown_weight: 0.0
+dataset:
+  jitter: null
+output:
+  dir: outputs/ablation/B_field

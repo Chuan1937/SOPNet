@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""Run the A-E ablation matrix by invoking train.py per experiment config."""
+"""Run the A-D ablation matrix (all no-jitter, matched U/D loss scope).
+
+A: SOPNet-Cls (known-only U/D classification)
+B: signed field (known-only field loss)
+C: B + polarity consistency loss
+D: full SOPNet (= v1 final recipe, reused from outputs/runs/sopnet_nojitter_36)
+"""
 
 from __future__ import annotations
 
@@ -16,12 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 REPO = Path(__file__).resolve().parents[1]
 
 EXPERIMENTS = {
-    "A_cls": "configs/experiments/classification.yaml",
-    "B_field": "configs/experiments/signed_field.yaml",
-    "C_jitter": "configs/experiments/signed_field_jitter.yaml",
-    "D_polarity": "configs/experiments/signed_field_polarity.yaml",
-    "E_full": "configs/experiments/sopnet_full.yaml",
+    "A_cls_ud": "configs/experiments/ablation_A_cls_ud.yaml",
+    "B_field": "configs/experiments/ablation_B_field.yaml",
+    "C_polarity": "configs/experiments/ablation_C_polarity.yaml",
+    "D_full": "configs/experiments/ablation_D_full.yaml",
 }
+
+REUSE = {"D_full": "outputs/runs/sopnet_nojitter_36"}
 
 
 def main() -> None:
@@ -80,23 +87,25 @@ def main() -> None:
                 }
             )
 
-    if "E_full" not in args.experiments:
-        reused = REPO / "outputs/runs/sopnet_full_36/metrics.json"
-        if reused.exists():
-            summary = json.loads(reused.read_text())
+    for experiment, source in REUSE.items():
+        if experiment in args.experiments:
+            continue
+        metrics_path = REPO / source / "metrics.json"
+        if metrics_path.exists():
+            summary = json.loads(metrics_path.read_text())
             rows.append(
                 {
-                    "experiment": "E_full",
-                    "config": EXPERIMENTS["E_full"],
+                    "experiment": experiment,
+                    "config": EXPERIMENTS[experiment],
                     "best_epoch": summary.get("best_epoch"),
                     "monitor": summary.get("monitor"),
                     "best_metric": summary.get("best_metric"),
                     "parameters": summary.get("parameters"),
                     "peak_gpu_memory_gb": summary.get("peak_gpu_memory_gb"),
-                    "reused_from": "outputs/runs/sopnet_full_36",
+                    "reused_from": source,
                 }
             )
-            print("reusing E_full metrics from outputs/runs/sopnet_full_36")
+            print(f"reusing {experiment} metrics from {source}")
 
     output_csv = Path(args.output_csv)
     output_csv.parent.mkdir(parents=True, exist_ok=True)

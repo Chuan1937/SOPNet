@@ -1,0 +1,14 @@
+# 消融 A：SOPNet-Cls（known-only U/D 二分类，匹配 v1 的损失口径）
+model:
+  name: sopnet_cls
+  num_classes: 2
+train:
+  task: classify_ud
+  lambda_pol: 0.0
+  lambda_inv: 0.0
+  beta: 0.0
+  unknown_weight: 0.0
+dataset:
+  jitter: null
+output:
+  dir: outputs/ablation/A_cls_ud

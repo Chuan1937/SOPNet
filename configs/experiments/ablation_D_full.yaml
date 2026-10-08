@@ -1,0 +1,10 @@
+# 消融 D：完整 SOPNet（= v1 最终配方；运行时复用 outputs/runs/sopnet_nojitter_36）
+train:
+  task: field
+  unknown_weight: 0.0
+  lambda_pol: 0.5
+  lambda_inv: 0.1
+dataset:
+  jitter: null
+output:
+  dir: outputs/ablation/D_full

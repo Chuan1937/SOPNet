@@ -65,3 +65,38 @@ def test_multitask_training_and_collect_predictions(synthetic_cache, tmp_path):
     assert outputs["confidence"].min() >= 0.0
     assert outputs["confidence"].max() <= 1.0
     assert outputs["p_pred"].shape == (8,)
+
+
+def test_classify_ud_training_and_predictions(synthetic_cache, tmp_path):
+    cache_dir, manifest, index = synthetic_cache
+    model = build_model({"model": {"name": "sopnet_cls", "num_classes": 2}})
+    config = TrainConfig(
+        task="classify_ud",
+        epochs=1,
+        batch_size=16,
+        num_workers=0,
+        amp=False,
+        device="cpu",
+        seed=0,
+    )
+    trainer = Trainer(model, config, tmp_path / "run_cls", run_config={"train": {"task": "classify_ud"}})
+    train_dataset = UnifiedPolarityDataset(
+        cache_dir, split="train", jitter=None, max_samples=48, seed=0, manifest=manifest, index=index
+    )
+    val_dataset = UnifiedPolarityDataset(
+        cache_dir, split="val", max_samples=24, seed=0, manifest=manifest, index=index
+    )
+    summary = trainer.fit(train_dataset, val_dataset)
+    assert "known_accuracy" in summary["history"][0]["val"]
+
+    loader = [
+        {
+            "x": torch.randn(8, 1, 400),
+            "label": torch.tensor([1, -1, 0, 1, -1, 0, 1, -1]),
+            "p_pick": torch.full((8,), 200),
+            "target": torch.zeros(8, 400),
+        }
+    ]
+    outputs = collect_predictions(model, loader, device="cpu", task="classify_ud")
+    assert set(torch.unique(torch.from_numpy(outputs["predictions"])).tolist()) <= {1, -1}
+    assert outputs["confidence"].min() >= 0.0
