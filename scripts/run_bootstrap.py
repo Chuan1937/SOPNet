@@ -90,7 +90,7 @@ def main() -> None:
         )
         if not np.array_equal(baseline["labels"], outputs["labels"]):
             raise RuntimeError(f"{name}: baseline predictions are not aligned with SOPNet")
-        baseline_pred = baseline["predictions"][known]
+        baseline_pred = np.where(baseline["ud_score"] >= 0, UP, DOWN)[known]
         result = paired_bootstrap_difference(
             y_true, sopnet_pred, baseline_pred, metric=score, n_resamples=args.n_resamples
         )

@@ -21,7 +21,7 @@ import torch.nn as nn
 from sopnet.data.augment import AugmentConfig
 from sopnet.data.canonical import DOWN, UNKNOWN, UP
 from sopnet.data.dataset import UnifiedPolarityDataset, make_dataloader
-from sopnet.training.metrics import binary_metrics
+from sopnet.training.metrics import binary_metrics, macro_f1
 from sopnet.training.optimizer import build_optimizer, build_scheduler
 from sopnet.utils.system import collect_env, peak_gpu_memory_gb
 
@@ -34,7 +34,10 @@ class BaselineSpec:
     factory: str
     input_length: int
     input_channels: int = 1
-    output: str = "binary_ud"  # binary_ud (positive logit = UP), binary_du, three_class
+    # binary_ud: one logit, positive = UP
+    # binary_du: two logits, index 0 = DOWN, index 1 = UP (official RPNet convention)
+    # three_class: three logits, {0: UP, 1: DOWN, 2: UNKNOWN}
+    output: str = "binary_ud"
     derivative: bool = False
     kwargs: Dict = field(default_factory=dict)
 
@@ -42,7 +45,9 @@ class BaselineSpec:
 BASELINE_SPECS: Dict[str, BaselineSpec] = {
     "ross": BaselineSpec("ross", "SCSN", 400, output="three_class"),
     "rpnet": BaselineSpec("rpnet", "RPNet", 400, output="binary_du"),
-    "eqpolarity": BaselineSpec("eqpolarity", "EQPolarityCCT", 200, output="binary_ud"),
+    "eqpolarity": BaselineSpec(
+        "eqpolarity", "EQPolarityCCT", 600, output="binary_ud", kwargs={"input_length": 600}
+    ),
     "cfm": BaselineSpec("cfm", "CFM", 160, output="binary_ud"),
     "diting_motion": BaselineSpec(
         "diting_motion", "DitingMotion", 128, input_channels=2, output="three_class", derivative=True
@@ -67,11 +72,17 @@ def _center_crop(waveform: torch.Tensor, length: int) -> torch.Tensor:
 
 
 def prepare_baseline_input(waveform: torch.Tensor, spec: BaselineSpec) -> torch.Tensor:
-    """Crop to the model's window and add the derivative channel when required."""
+    """Crop to the model's window and add the derivative channel when required.
+
+    DiTingMotion's second channel follows the official definition
+    (``seispolarity.generate.augmentation.DifferentialFeatures``): the forward
+    first difference, zero-padded at the start, then its sign.
+    """
     cropped = _center_crop(waveform, spec.input_length)
     if spec.derivative:
-        derivative = torch.gradient(cropped, dim=-1)[0]
-        cropped = torch.cat([cropped, derivative], dim=1)
+        difference = cropped[..., 1:] - cropped[..., :-1]
+        difference = nn.functional.pad(difference, (1, 0))
+        cropped = torch.cat([cropped, torch.sign(difference)], dim=1)
     return cropped
 
 
@@ -100,9 +111,8 @@ def _targets(spec: BaselineSpec, labels: torch.Tensor):
     mask = labels != UNKNOWN
     target = (labels == UP).float()
     if spec.output == "binary_du":
-        target = (labels == DOWN).long()
-    else:
-        target = target
+        # Official RPNet convention: index 1 is UP, index 0 is DOWN.
+        target = (labels == UP).long()
     return target, mask
 
 
@@ -117,6 +127,15 @@ def _loss(spec: BaselineSpec, output: torch.Tensor, labels: torch.Tensor) -> tor
     return nn.functional.binary_cross_entropy_with_logits(output[mask].squeeze(-1), target[mask])
 
 
+def _ud_score(spec: BaselineSpec, output: torch.Tensor) -> torch.Tensor:
+    """UP-minus-DOWN evidence (positive = UP) in the model's own convention."""
+    if spec.output == "three_class":
+        return output[:, 0] - output[:, 1]
+    if spec.output == "binary_du":
+        return output[:, 1] - output[:, 0]
+    return output.squeeze(-1)
+
+
 def _predict(spec: BaselineSpec, output: torch.Tensor):
     if spec.output == "three_class":
         predicted_class = output.argmax(dim=-1)
@@ -127,7 +146,7 @@ def _predict(spec: BaselineSpec, output: torch.Tensor):
     if spec.output == "binary_du":
         predicted_class = output.argmax(dim=-1)
         predictions = torch.where(
-            predicted_class == 1, torch.full_like(predicted_class, DOWN), torch.full_like(predicted_class, UP)
+            predicted_class == 1, torch.full_like(predicted_class, UP), torch.full_like(predicted_class, DOWN)
         )
         confidence = torch.softmax(output, dim=-1).max(dim=-1).values
         return predictions, confidence
@@ -154,6 +173,7 @@ class BaselineTrainConfig:
     num_workers: int = 8
     seed: int = 36
     device: str = "cuda"
+    window_length: int = 600
     augment: Optional[AugmentConfig] = None
 
 
@@ -180,6 +200,7 @@ def train_baseline(
         augment=config.augment,
         max_samples=limit_train,
         seed=config.seed,
+        window_length=config.window_length,
     )
     val_dataset = UnifiedPolarityDataset(
         cache_dir,
@@ -188,6 +209,7 @@ def train_baseline(
         augment=None,
         max_samples=limit_val,
         seed=config.seed,
+        window_length=config.window_length,
     )
     train_loader = make_dataloader(
         train_dataset,
@@ -235,19 +257,23 @@ def train_baseline(
             steps += 1
 
         model.eval()
-        labels, predictions, confidences = [], [], []
+        labels, predictions, ud_scores = [], [], []
         with torch.no_grad():
             for batch in val_loader:
                 x = batch["x"].to(device, non_blocking=True)
                 output = model(x)
-                pred, confidence = _predict(spec, output)
+                pred, _ = _predict(spec, output)
                 labels.append(batch["label"].numpy())
                 predictions.append(pred.cpu().numpy())
-                confidences.append(confidence.cpu().numpy())
+                ud_scores.append(_ud_score(spec, output).cpu().numpy())
         y_true = np.concatenate(labels)
         y_pred = np.concatenate(predictions)
+        ud_pred = np.where(np.concatenate(ud_scores) >= 0, UP, DOWN)
         known = y_true != UNKNOWN
-        validation = binary_metrics(y_true[known], y_pred[known]) if known.any() else {"accuracy": 0.0}
+        validation = binary_metrics(y_true[known], ud_pred[known]) if known.any() else {"accuracy": 0.0}
+        if known.any():
+            validation["macro_f1_ud"] = macro_f1(y_true[known], ud_pred[known], labels=(DOWN, UP))
+            validation["native_accuracy"] = float((y_pred[known] == y_true[known]).mean())
         record = {
             "epoch": epoch,
             "train_loss": running / max(1, steps),
@@ -294,8 +320,16 @@ def collect_baseline_predictions(
     batch_size: int = 1024,
     num_workers: int = 4,
     device: str = "cuda",
+    window_length: int = 600,
 ) -> Dict[str, np.ndarray]:
-    """Load a baseline checkpoint and return per-sample labels/predictions/confidence."""
+    """Load a baseline checkpoint and return per-sample predictions.
+
+    The returned ``ud_score`` is the model's own UP-minus-DOWN evidence
+    (positive = UP): the logit for one-logit models, the logit difference for
+    two-logit models, and ``logit[UP] - logit[DOWN]`` for three-class models.
+    ``native_class`` keeps the model's full decision (including its UNKNOWN
+    class), and ``unknown_flag`` marks samples the model itself rejects.
+    """
     spec = BASELINE_SPECS[name]
     model = BaselineWrapper(build_baseline(name), spec)
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -303,20 +337,52 @@ def collect_baseline_predictions(
     model.to(torch.device(device) if torch.cuda.is_available() else torch.device("cpu"))
     model.eval()
 
-    dataset = UnifiedPolarityDataset(cache_dir, split=split, jitter=None)
+    dataset = UnifiedPolarityDataset(cache_dir, split=split, jitter=None, window_length=window_length)
     loader = make_dataloader(dataset, batch_size, shuffle=False, num_workers=num_workers)
-    labels, predictions, confidences = [], [], []
+    labels, ud_scores, native, unknown, confidence = [], [], [], [], []
     for batch in loader:
         x = batch["x"].to(device)
         output = model(x)
-        pred, confidence = _predict(spec, output)
+        if spec.output == "three_class":
+            probabilities = torch.softmax(output, dim=-1)
+            class_index = probabilities.argmax(dim=-1)
+            mapping = torch.tensor([UP, DOWN, UNKNOWN], device=output.device)
+            native_class = mapping[class_index]
+            ud_score = output[:, 0] - output[:, 1]
+            unknown_flag = class_index == 2
+            conf = probabilities.max(dim=-1).values
+        elif spec.output == "binary_du":
+            ud_score = output[:, 1] - output[:, 0]
+            class_index = (ud_score >= 0).long()
+            native_class = torch.where(
+                class_index == 1,
+                torch.full_like(class_index, UP),
+                torch.full_like(class_index, DOWN),
+            )
+            unknown_flag = torch.zeros_like(class_index, dtype=torch.bool)
+            conf = torch.softmax(output, dim=-1).max(dim=-1).values
+        else:  # binary_ud: single logit, positive = UP
+            logit = output.squeeze(-1)
+            ud_score = logit
+            native_class = torch.where(
+                logit >= 0,
+                torch.full_like(logit, UP, dtype=torch.long),
+                torch.full_like(logit, DOWN, dtype=torch.long),
+            )
+            unknown_flag = torch.zeros_like(logit, dtype=torch.bool)
+            conf = torch.sigmoid(logit.abs())
         labels.append(batch["label"].numpy())
-        predictions.append(pred.cpu().numpy())
-        confidences.append(confidence.cpu().numpy())
+        ud_scores.append(ud_score.detach().cpu().numpy())
+        native.append(native_class.detach().cpu().numpy())
+        unknown.append(unknown_flag.detach().cpu().numpy())
+        confidence.append(conf.detach().cpu().numpy())
     return {
+        "sample_ids": np.asarray(dataset.sample_ids),
         "labels": np.concatenate(labels),
-        "predictions": np.concatenate(predictions),
-        "confidence": np.concatenate(confidences),
+        "ud_score": np.concatenate(ud_scores),
+        "native_class": np.concatenate(native),
+        "unknown_flag": np.concatenate(unknown),
+        "confidence": np.concatenate(confidence),
     }
 
 
@@ -329,7 +395,14 @@ def evaluate_baseline(
     batch_size: int = 1024,
     num_workers: int = 4,
     device: str = "cuda",
+    window_length: int = 600,
+    save_predictions: Optional[Path] = None,
 ) -> Dict[str, float]:
+    """Strict U/D evaluation: the main metrics use the model's U/D score only.
+
+    Unknown predictions are not folded into the U/D decision; the model's own
+    rejection rate is reported separately as a supplementary number.
+    """
     outputs = collect_baseline_predictions(
         name,
         checkpoint,
@@ -338,11 +411,34 @@ def evaluate_baseline(
         batch_size=batch_size,
         num_workers=num_workers,
         device=device,
+        window_length=window_length,
     )
     y_true = outputs["labels"]
-    y_pred = outputs["predictions"]
     known = y_true != UNKNOWN
-    metrics = binary_metrics(y_true[known], y_pred[known]) if known.any() else {}
-    metrics["n"] = int(len(y_true))
-    metrics["n_known"] = int(known.sum())
+    ud_predictions = np.where(outputs["ud_score"] >= 0, UP, DOWN)
+    metrics: Dict[str, float] = {
+        "n": int(y_true.size),
+        "n_known": int(known.sum()),
+    }
+    if known.any():
+        metrics.update(binary_metrics(y_true[known], ud_predictions[known]))
+        metrics["macro_f1_ud"] = macro_f1(y_true[known], ud_predictions[known], labels=(DOWN, UP))
+        metrics["native_known_accuracy"] = float((outputs["native_class"][known] == y_true[known]).mean())
+    else:
+        metrics["macro_f1_ud"] = 0.0
+        metrics["native_known_accuracy"] = 0.0
+    metrics["unknown_rate"] = float(outputs["unknown_flag"].mean())
+    metrics["unknown_rate_known"] = float(outputs["unknown_flag"][known].mean()) if known.any() else 0.0
+    if save_predictions is not None:
+        save_predictions = Path(save_predictions)
+        save_predictions.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            save_predictions,
+            sample_ids=outputs["sample_ids"],
+            labels=y_true,
+            ud_score=outputs["ud_score"],
+            native_class=outputs["native_class"],
+            unknown_flag=outputs["unknown_flag"],
+            confidence=outputs["confidence"],
+        )
     return metrics
