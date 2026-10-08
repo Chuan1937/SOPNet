@@ -40,6 +40,8 @@ def main() -> None:
     parser.add_argument("--limit-train", type=int, default=None)
     parser.add_argument("--limit-val", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--num-workers", type=int, default=None)
+    parser.add_argument("--device", default=None)
     parser.add_argument("--seed", type=int, default=36)
     parser.add_argument("--output-csv", default="outputs/paper/tables/ablation.csv")
     args = parser.parse_args()
@@ -69,6 +71,10 @@ def main() -> None:
             command += ["--limit-val", str(args.limit_val)]
         if args.batch_size:
             command += ["--batch-size", str(args.batch_size)]
+        if args.num_workers is not None:
+            command += ["--num-workers", str(args.num_workers)]
+        if args.device:
+            command += ["--device", args.device]
         print("running:", " ".join(command))
         subprocess.run(command, check=True)
 
