@@ -431,6 +431,23 @@ grid of $\{-0.20,-0.10,-0.05,0,+0.05,+0.10,+0.20\}$~s.
 \section{Results}
 \label{sec:results}
 
+Figure~\ref{fig:examples} shows representative decisions of the full model:
+two confident correct cases (clean and noisy onsets), one hard-but-correct
+case at low confidence, and one high-confidence error, whose waveform
+illustrates the emergent, low-amplitude onsets that dominate the residual
+error.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{../../outputs/paper/figures/fig2_examples.pdf}
+  \caption{Qualitative examples from the test set: waveform (top) and predicted
+  signed field (bottom). Columns show two confident correct decisions, one
+  low-confidence correct decision, and one high-confidence error. The red
+  dashed line marks the reference P; the field peak (dot) locates the onset and
+  its sign gives the polarity.}
+  \label{fig:examples}
+\end{figure}
+
 \subsection{Main comparison}
 \label{sec:main}
 
@@ -558,8 +575,8 @@ accuracy; we return to this in Section~\ref{sec:discussion}.
   \label{fig:shift}
 \end{figure}
 
-\TBD{Figure 2 (qualitative fields) to be finalised; Figure 5 (calibration /
-selective prediction) from outputs/paper/figures/.}
+\TBD{Figure 5 (calibration / selective prediction) from
+outputs/paper/figures/.}
 
 \section{Discussion}
 \label{sec:discussion}
