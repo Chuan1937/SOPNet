@@ -103,6 +103,9 @@ def collect_predictions(
         "predictions": np.concatenate(predictions),
         "confidence": np.concatenate(confidences),
     }
+    dataset = getattr(loader, "dataset", None)
+    if dataset is not None and hasattr(dataset, "sample_ids"):
+        result["sample_ids"] = np.asarray(dataset.sample_ids)
     if p_pred:
         result["p_pred"] = np.concatenate(p_pred)
         result["p_true"] = np.concatenate(p_true)

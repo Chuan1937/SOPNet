@@ -44,6 +44,11 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--save-predictions",
+        default=None,
+        help="write per-sample predictions to this .npz path",
+    )
     args = parser.parse_args()
 
     checkpoint_path = Path(args.checkpoint)
@@ -153,6 +158,21 @@ def main() -> None:
 
     save_metrics(metrics, output_dir / f"{args.split}_metrics.json")
     logger.info("metrics: %s", {k: v for k, v in metrics.items() if not isinstance(v, dict)})
+
+    if args.save_predictions and "labels" in outputs:
+        import numpy as np
+
+        save_path = Path(args.save_predictions)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            save_path,
+            sample_ids=outputs.get("sample_ids", np.array([])),
+            labels=outputs["labels"],
+            predictions=outputs["predictions"],
+            confidence=outputs["confidence"],
+            p_pred=outputs.get("p_pred", np.array([])),
+        )
+        logger.info("predictions saved to %s", save_path)
 
 
 if __name__ == "__main__":
