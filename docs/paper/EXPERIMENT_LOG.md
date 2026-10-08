@@ -44,3 +44,19 @@
   3. 汇总论文表；
   4. 聚类配对 bootstrap。
   日志：`outputs/runs/g1_finish.log`。
+
+### G4 论文骨架（22:30-23:40，与 G1 并行）
+
+- [x] `paper/manuscript/manuscript.tex` + `references.bib`：英文初稿骨架
+  （摘要/引言/相关工作/方法/数据协议/结果占位/讨论/结论），LaTeX+BibTeX
+  编译通过、引用零 undefined；五基线文献出处已核实（RPNet/EQPolarity
+  卷页标注投稿前复检）。
+- [x] Table 1（数据集统计）用真实数字：7,781,561 波形 / 1,117,379 事件；
+  测试 777,720 / 已知极性 327,231 / 111,588 事件。
+- [x] Figure 1 架构图：`scripts/make_fig_architecture.py`（无 GPU 依赖）。
+- [x] Figure 2 定性示例：`scripts/make_fig_examples.py`（CPU 推理，含
+  低置信正确与高置信错误各一例）。
+- [x] Figure 5 校准/选择性预测：`scripts/make_fig_calibration.py`
+  （CFM 预测文件冒烟通过；待 SOPNet 预测 npz 生成后出正式图）。
+- [x] `docs/paper/RESULT_VERIFICATION.md`：数字追溯文档（已验证/待生成清单、
+  复现命令、核验规则）。
