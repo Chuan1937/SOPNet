@@ -1,0 +1,9 @@
+# Ablation D: signed field + P jitter + polarity consistency (no inversion loss)
+train:
+  task: field
+  lambda_pol: 0.5
+  lambda_inv: 0.0
+dataset:
+  jitter: [120, 280]
+output:
+  dir: outputs/runs/ablation_D_polarity

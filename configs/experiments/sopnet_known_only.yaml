@@ -1,0 +1,13 @@
+# SOPNet variant: field loss only on labelled U/D samples (unknown weight 0)
+train:
+  task: field
+  beta: 8.0
+  lambda_pol: 0.5
+  lambda_inv: 0.1
+  inv_batch_prob: 0.25
+  unknown_weight: 0.0
+dataset:
+  jitter: [120, 280]
+  sigma: 10.0
+output:
+  dir: outputs/runs/sopnet_known_only_36

@@ -1,0 +1,9 @@
+# Ablation C: signed field + random P-position jitter
+train:
+  task: field
+  lambda_pol: 0.0
+  lambda_inv: 0.0
+dataset:
+  jitter: [120, 280]
+output:
+  dir: outputs/runs/ablation_C_jitter

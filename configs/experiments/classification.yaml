@@ -1,0 +1,12 @@
+# Ablation A: SOPNet-Cls (no signed field, no P jitter, no polarity/inversion loss)
+model:
+  name: sopnet_cls
+train:
+  task: classify
+  lambda_pol: 0.0
+  lambda_inv: 0.0
+  beta: 0.0
+dataset:
+  jitter: null
+output:
+  dir: outputs/runs/ablation_A_cls
