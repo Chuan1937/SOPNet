@@ -14,13 +14,28 @@
   macro-F1 U/D 0.9727）。
 - [x] 旧协议 checkpoint 归档到 `outputs/retired/`（rpnet、diting、ross、eqpolarity）。
 - [ ] 重训队列（21:08 启动，单 GPU 串行）：
-  1. diting_motion（官方差分通道，batch 1024）——进行中
-  2. ross（strict U/D 早停监控）
-  3. rpnet（官方类别顺序）
-  4. eqpolarity（官方 600 输入，预计 17-30 h）
+  1. diting_motion（官方差分通道，batch 1024）——完成 01:24
+     （test acc 0.9634 / macro-F1 0.9631 / MCC 0.9263）
+  2. ross（strict U/D 早停监控）——完成 02:53
+     （test acc 0.9694 / macro-F1 0.9692 / MCC 0.9384）
+  3. rpnet（官方类别顺序）——完成 10:50
+     （test acc 0.9728 / macro-F1 0.9726 / MCC 0.9453）
+  4. eqpolarity（官方 600 输入）——进行中（10:51 起；CCT 计算量大，
+     首轮约 30+ 分钟，预计 10-30 h）
 - [ ] 重训完成后生成 `main_results.csv`、`per_source_results.csv`、
   `baseline_protocol.csv` 与逐样本预测（`outputs/paper/predictions/`）——
   已由自动收尾链 `g1_finish.sh` 接管。
+
+主表实时预览（strict U/D，n_known=327,231）：
+
+| 模型 | acc | macro-F1 | MCC |
+|---|---|---|---|
+| SOPNet | 0.9782 | 0.9779 | 0.9561 |
+| CFM | 0.9729 | 0.9727 | 0.9454 |
+| RPNet | 0.9728 | 0.9726 | 0.9453 |
+| Ross | 0.9694 | 0.9692 | 0.9384 |
+| DiTingMotion | 0.9634 | 0.9631 | 0.9263 |
+| EQPolarity | 待训练完成 | | |
 
 日志：`outputs/runs/g1_pipeline.log`。
 

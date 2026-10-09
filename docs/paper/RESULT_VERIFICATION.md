@@ -64,6 +64,29 @@ python scripts/evaluate.py \
 | unknown 率 | 0.0（原生二分类） |
 | 参数量 / 输入长度 | 410,981 / 160 |
 
+### G1 重训基线（2026-10-09，strict 协议）
+
+重训命令（串行队列 `outputs/runs/g1_pipeline.log`）：
+`python scripts/train_baselines.py --cache-dir outputs/cache_v1 --baselines <name>
+--epochs 50 --batch-size 512/1024 --num-workers 8 --window-length 600 --seed 36`
+（diting_motion 使用 batch 1024 加速；其余 512）
+
+| 模型 | 完成时间 | test acc | macro-F1 (U/D) | MCC | unknown 率 | 参数量 / 输入 |
+|---|---|---|---|---|---|---|
+| DiTingMotion | 01:24 | 0.963414 | 0.963144 | 0.926301 | 0.5927 | 30,146 / 128（双通道） |
+| Ross | 02:53 | 0.969428 | 0.969208 | 0.938421 | 0.5989 | 3,665,731 / 400 |
+| RPNet | 10:50 | 0.972823 | 0.972633 | 0.945266 | 0.0 | 6,044,338 / 400 |
+| EQPolarity | 进行中（10:51 起） | — | — | — | — | — / 600 |
+
+复现评估命令（任意基线）：
+
+```bash
+python scripts/evaluate_baselines.py --baselines <name> --num-workers 8
+```
+
+逐样本预测：`outputs/paper/predictions/{name}_{val,test}.npz`
+（字段：sample_ids, labels, ud_score, native_class, unknown_flag, confidence）。
+
 ### 图件
 
 | 图 | 文件 | 生成命令 |
