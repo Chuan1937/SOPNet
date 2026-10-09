@@ -83,3 +83,20 @@
   实验完全无效**。修复为：窗口起点允许越界，缓存外样本零填充（SOPNet 400 窗口
   行为不变）。新增回归测试 `test_p_shift_applies_to_full_cache_window`。
   修复后冒烟：CFM 在 +0.2 s 偏移下 0.975 → 0.40，与 SOPNet 量级一致。
+
+## 2026-10-09
+
+### G1 收尾（EQPolarity 决策）
+
+- 15:18 停止 EQPolarity 训练（已完成 5 轮，val U/D 0.9656 趋于平台；
+  用户决策，不标注早停，按正常结果入表）。
+- 15:20 启动"G1 收尾 + G2 + G3"串行链（`/tmp/opencode/closeout_g2_g3.sh`，
+  日志 `outputs/runs/closeout_g2_g3.log`，失败即中止）：
+  1. EQPolarity `best.pt`（第 5 轮）strict 重评估 + 协议补全
+     （epochs_run=5，与 ross=21、rpnet=45 同为常规字段）；
+  2. SOPNet 测试集重评估并保存逐样本预测；
+  3. 主表 / 逐源表 / 协议表 + 事件聚类配对 bootstrap；
+  4. G2：A/B/C 消融训练（各 50 轮、batch 1024，约 14 h/个）+ 测试评估 + 消融表；
+  5. G3：六模型鲁棒性（30k 固定子集，SNR + P 偏移）+ Fig5 校准图。
+
+预计串行总时长约 45 h（G2 占 ~42 h）。
