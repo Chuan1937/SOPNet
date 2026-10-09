@@ -113,3 +113,9 @@
   4. 汇总表格 → G3 六模型鲁棒性 → Fig5 校准图。
 - 参照：D 组 val 最好 0.9786（场模型对分类器 A 的差距 ~0.3 个点，
   即消融要展示的场表示增益）。
+
+### G2-B 早停（用户决策）
+
+- 18:43 停止 B 组训练（best epoch 8，val U/D 0.9756；第 9 轮起不再刷新）。
+- 接力链 `/tmp/opencode/g2_continue_c.sh`（日志 `outputs/runs/g2_continue_c.log`）：
+  评估 B → 训练 C → 评估 C → 汇总表格 → G3 鲁棒性 → Fig5。
