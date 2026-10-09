@@ -129,3 +129,19 @@
   `macro_f1_ud_selected`（选择性操作点，仅作补充）。全部测试通过。
 - 收尾阶段用修正后的代码重评估 B 与 SOPNet-D 并重建表格；C 的测试评估
   将自动使用修正口径。
+
+### G2/G3 收尾完成（20:43）
+
+- 消融最终（测试集 strict U/D，n_known=327,231；A/B/C 为平台/手动早停，
+  D 为完整 50 轮）：
+  - A 纯分类器 0.9746 / 0.9745 / 0.9489（e7 停）
+  - B 场 0.9752 / 0.9751 / 0.9501（e8 停）
+  - C 场+极性 0.9736 / 0.9734 / 0.9469（e6 停，欠训练，方案待用户定夺）
+  - D 完整 0.9782 / 0.9780 / 0.9561
+- 指标口径修复后 SOPNet macro-F1 = 0.97804（与 bootstrap 完全一致）。
+- G3 鲁棒性（30k 固定子集）：SNR 下 SOPNet 全档第一（clean 0.9768 →
+  −5 dB 0.7795）；P 偏移下六模型均在 ±0.05 s 崩至 0.59-0.71，±0.1 s 后
+  接近随机——固定中心窗口对参考 P 精度是硬性依赖（讨论中如实呈现）。
+- Fig3（SNR）、Fig4（P 偏移）、Fig5（校准/选择性）全部产出。
+- 表格产物：`outputs/paper/tables/{main_results, per_source_results,
+  baseline_protocol, ablation_results, bootstrap, snr_all, p_shift_all}.csv`。

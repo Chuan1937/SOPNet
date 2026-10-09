@@ -41,7 +41,7 @@
 |---|---|
 | n / n_known | 777,720 / 327,231 |
 | known accuracy | 0.978196 |
-| macro-F1 (U/D) | 0.977931 |
+| macro-F1 (U/D) | 0.978042（20:43 口径修复后刷新） |
 | precision / recall | 0.977001 / 0.975405 |
 | binary F1 | 0.976202 |
 | MCC | 0.956085 |
@@ -107,14 +107,14 @@ python scripts/evaluate_baselines.py --baselines <name> --num-workers 8
 
 | 产物 | 依赖 | 状态 |
 |---|---|---|
-| `outputs/paper/tables/main_results.csv` | G1 五基线重训完成 | 待生成（收尾链） |
-| `outputs/paper/tables/per_source_results.csv` | 六模型逐样本预测 | 待生成（收尾链） |
-| `outputs/paper/tables/baseline_protocol.csv` | 各基线 protocol.json | 待生成（收尾链） |
-| `outputs/paper/tables/bootstrap.csv` | 事件级聚类配对 bootstrap | 待生成（收尾链） |
-| `outputs/paper/tables/ablation_results.csv` | G2 A/B/C 训练 + 测试评估 | 待生成（G2） |
-| `outputs/paper/tables/snr_all.csv`、`p_shift_all.csv` | G3 六模型鲁棒性 | 待生成（G3） |
-| Fig 3/4（SNR/P 偏移曲线） | 同上 | 待生成（G3） |
-| Fig 5（校准/选择性预测） | SOPNet val/test 预测 | 待生成（G3 或 G4） |
+| `outputs/paper/tables/main_results.csv` | G1 六模型 | ✅ 已验证（20:43 刷新） |
+| `outputs/paper/tables/per_source_results.csv` | 六模型逐样本预测 | ✅ 已验证 |
+| `outputs/paper/tables/baseline_protocol.csv` | 各基线 protocol.json | ✅ 已验证 |
+| `outputs/paper/tables/bootstrap.csv` | 事件级聚类配对 bootstrap | ✅ 已验证（5 组 CI 均排除 0） |
+| `outputs/paper/tables/ablation_results.csv` | G2 A/B/C/D | ✅ 已验证（C 为 e6 停，方案待定） |
+| `outputs/paper/tables/snr_all.csv`、`p_shift_all.csv` | G3 六模型鲁棒性 | ✅ 已验证 |
+| Fig 3/4（SNR/P 偏移曲线） | 同上 | ✅ 已产出 |
+| Fig 5（校准/选择性预测） | SOPNet 预测 | ✅ 已产出 |
 
 ## 核验规则
 
