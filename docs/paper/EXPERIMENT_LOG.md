@@ -119,3 +119,13 @@
 - 18:43 停止 B 组训练（best epoch 8，val U/D 0.9756；第 9 轮起不再刷新）。
 - 接力链 `/tmp/opencode/g2_continue_c.sh`（日志 `outputs/runs/g2_continue_c.log`）：
   评估 B → 训练 C → 评估 C → 汇总表格 → G3 鲁棒性 → Fig5。
+
+### 指标口径修复（19:00）
+
+- 发现 `evaluate_field` 在传入阈值时用"阈值化 macro-F1"覆盖了
+  `macro_f1_ud`（B 组覆盖 90.8% 时被压成 0.9436；D 组因覆盖率 99.5%
+  仅差 1e-4，此前 bootstrap 与主表的 1e-4 差异即源于此）。
+- 修复：`macro_f1_ud` 保持**无阈值 strict 口径**；阈值化版本改名
+  `macro_f1_ud_selected`（选择性操作点，仅作补充）。全部测试通过。
+- 收尾阶段用修正后的代码重评估 B 与 SOPNet-D 并重建表格；C 的测试评估
+  将自动使用修正口径。

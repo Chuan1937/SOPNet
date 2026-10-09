@@ -144,7 +144,10 @@ def evaluate_field(
         pred_with_unknown = np.where(confidence >= threshold, predictions, UNKNOWN)
         metrics["threshold"] = float(threshold)
         metrics["macro_f1_udx"] = macro_f1(labels, pred_with_unknown)
-        metrics["macro_f1_ud"] = macro_f1(labels[known], pred_with_unknown[known], labels=(DOWN, UP))
+        # The thresholded macro-F1 is a supplementary selective operating point.
+        # The primary ``macro_f1_ud`` above stays threshold-free (strict U/D
+        # decision on every known sample), matching the benchmark protocol.
+        metrics["macro_f1_ud_selected"] = macro_f1(labels[known], pred_with_unknown[known], labels=(DOWN, UP))
         metrics["coverage"] = float(np.mean(confidence >= threshold))
         covered = confidence >= threshold
         if covered.any():
