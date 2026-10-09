@@ -145,3 +145,17 @@
 - Fig3（SNR）、Fig4（P 偏移）、Fig5（校准/选择性）全部产出。
 - 表格产物：`outputs/paper/tables/{main_results, per_source_results,
   baseline_protocol, ablation_results, bootstrap, snr_all, p_shift_all}.csv`。
+
+### 参考文献核验（Crossref，21:0x）
+
+- 全部条目经 Crossref API 校验，修正 5 处：Ross DOI（→10.1029/2017JB015251）、
+  PolarCAP DOI（→10.1016/j.aiig.2022.08.001）、PNW 出处（EarthArXiv→Seismica
+  2(1), doi:10.26443/seismica.v2i1.368）、DiTing 作者（Chen, Shi）、TXED 期号
+  （95(3)）。补全 EQPolarity/RPNet/CFM/DiTingMotion 完整作者列表与卷页。
+- 编译复验：BibTeX 零告警，正文零未定义引用。
+
+### 待办补充
+
+- P 偏移细网格（±10/20/30 ms）已加入 `run_robustness.py --p-shifts`，
+  重跑中；完成后更新 Fig4 与正文容忍带数字。
+- C 组续训（resume from last.pt，用户批准）：细网格完成后启动。
