@@ -18,7 +18,11 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sopnet.evaluation.robustness import evaluate_noise, evaluate_p_shift  # noqa: E402
+from sopnet.evaluation.robustness import (  # noqa: E402
+    DEFAULT_P_SHIFTS_SECONDS,
+    evaluate_noise,
+    evaluate_p_shift,
+)
 from sopnet.models import build_model  # noqa: E402
 from sopnet.training.baselines import (  # noqa: E402
     BASELINE_SPECS,
@@ -117,6 +121,13 @@ def main() -> None:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--noise", action="store_true")
     parser.add_argument("--p-shift", action="store_true")
+    parser.add_argument(
+        "--p-shifts",
+        nargs="+",
+        type=float,
+        default=None,
+        help="custom P-shift grid in seconds (defaults to the protocol grid)",
+    )
     args = parser.parse_args()
 
     logger = get_logger("sopnet.robustness")
@@ -141,6 +152,7 @@ def main() -> None:
                 adapter,
                 Path(args.cache_dir),
                 device=args.device,
+                shifts_seconds=(tuple(args.p_shifts) if args.p_shifts else DEFAULT_P_SHIFTS_SECONDS),
                 batch_size=args.batch_size,
                 num_workers=args.num_workers,
                 subset_size=args.subset_size,
