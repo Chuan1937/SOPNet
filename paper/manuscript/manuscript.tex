@@ -428,7 +428,8 @@ of the macro-$F_1$ difference. Robustness experiments use a fixed
 30{,}000-waveform subset of the test split (fixed seed) so that every
 model sees exactly the same records; noise is injected at fixed SNR levels
 (clean, 20, 10, 5, 0 and \SI{-5}{dB}) and the reference window is shifted on a
-grid of $\{-0.20,-0.10,-0.05,0,+0.05,+0.10,+0.20\}$~s.
+grid of $-0.20$ to $+0.20$~s with additional $0.01$- to $0.03$-s steps around
+zero.
 
 \section{Results}
 \label{sec:results}
@@ -574,12 +575,15 @@ gracefully: 0.977 (clean), 0.963 (20\,dB), 0.938 (10\,dB), 0.909 (5\,dB),
 with gaps of 0.5--1.5 points. All models retain far-above-chance accuracy
 even at the lowest SNR, consistent with first-motion information being
 concentrated in the earliest samples of the onset.
-Figure~\ref{fig:shift} shows the corresponding curves for P-reference shifts.
-All six models degrade sharply beyond the zero reference: at $\pm$50\,ms
-accuracies fall to 0.59--0.71, and at $\pm$100\,ms to 0.45--0.58, close to
-chance. No model is robust; the collapse is a property of the fixed-window
-classification regime rather than of any single architecture, and we return
-to its implications in Section~\ref{sec:discussion}.
+Figure~\ref{fig:shift} shows the corresponding curves for P-reference shifts
+on the finer grid. Accuracy falls steeply and almost immediately: a
+single-sample (10\,ms) misalignment already costs SOPNet 3--13 points
+(0.947 for $+$10\,ms versus 0.845 for $-10$\,ms), $\pm$20\,ms yields
+0.70--0.88, and by $\pm$50\,ms all six models sit at 0.59--0.71; beyond
+$\pm$100\,ms the comparison is close to chance. The degradation is
+direction-dependent, and no model is robust: the collapse is a property of
+the fixed-window classification regime rather than of any single
+architecture. We return to its implications in Section~\ref{sec:discussion}.
 
 \begin{figure}[t]
   \centering
@@ -636,11 +640,13 @@ and Figure~\ref{fig:shift} makes the trade-off explicit: fixing the centre
 lets the network devote its capacity to the onset waveform itself, yielding
 high clean accuracy, but couples the decision to the accuracy of the
 reference arrival. The six-model measurement sharpens the point: the collapse
-at $\pm$50\,ms is regime-level, and the useful tolerance band is therefore
-narrower than 50\,ms. Modern deep pickers on comparable regional data report
-P-arrival errors of a few tens of milliseconds --- at the edge of this band.
-Within the band the polarity readout is reliable; beyond it, two mitigations
-apply. First, the failure mode is not silent: the field-peak magnitude drops
+at $\pm$50\,ms is regime-level, and the tolerance band is narrow: a
+10\,ms misalignment already costs several points and 20\,ms typically
+10--25 points, so near-ceiling performance demands sub-20\,ms reference
+accuracy. Modern deep pickers on comparable regional data report P-arrival
+errors of a few to a few tens of milliseconds, i.e., around the edge of this
+band. Within the band the polarity readout is reliable; beyond it, two
+mitigations apply. First, the failure mode is not silent: the field-peak magnitude drops
 as the onset moves away from the trained centre, so the confidence threshold
 (Section~\ref{sec:calibration}) can be used to abstain rather than to
 mislabel. Second, part of the sensitivity is plausibly architectural: strided
