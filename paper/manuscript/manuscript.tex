@@ -534,14 +534,14 @@ known-only field loss and neither consistency term; (C) B plus the
 polarity-consistency loss; (D) C plus the inversion-consistency loss (the full
 model). Table~\ref{tab:ablation} reports their test metrics. The binary
 classifier A (0.9746 accuracy / 0.9745 macro-$F_1$) and the unregularised
-signed field B (0.9752 / 0.9751) are nearly indistinguishable, whereas the
-full model D, which adds the polarity- and inversion-consistency losses,
-improves to 0.9782 / 0.9780 ($+0.30$ points over B and $+0.36$ over A). The
-advantage therefore comes from the consistency terms acting on the field
-rather than from the field representation alone. Variant C (polarity loss
-only) follows D's slow-convergence profile and was stopped at epoch~6 under a
-scheduling constraint; its row is reported for completeness but is not
-converged, so the loss attribution is based on the D-versus-B comparison.
+signed field B (0.9752 / 0.9751) are nearly indistinguishable, whereas
+adding the polarity-consistency loss (C) lifts accuracy to 0.9781 / 0.9779
+($+0.29$ points over B). The full model D, which additionally applies the
+inversion-consistency loss, is statistically unchanged from C
+(0.9782 / 0.9780; $+0.01$ points). The gain is therefore carried by the
+polarity-consistency loss acting on the signed field, while the
+inversion-consistency term is neutral as a performance lever and is retained
+as a physically motivated regulariser.
 
 \begin{table}[t]
   \centering
@@ -549,8 +549,7 @@ converged, so the loss attribution is based on the D-versus-B comparison.
   backbone, data and schedule for all variants; test set, strict U/D).
   A: binary classification sharing the encoder; B: signed field; C: B plus
   the polarity-consistency loss; D: C plus the inversion-consistency loss
-  (full model). C was stopped at epoch~6 under a scheduling constraint and is
-  not converged (see text).}
+  (full model).}
   \label{tab:ablation}
   \small
   \begin{tabular}{lcccc}
@@ -559,7 +558,7 @@ converged, so the loss attribution is based on the D-versus-B comparison.
     \midrule
     A: SOPNet-Cls            & 0.9746 & 0.9745 & 0.9489 & 1.23M \\
     B: signed field          & 0.9752 & 0.9751 & 0.9501 & 1.44M \\
-    C: $+$ polarity loss     & 0.9736 & 0.9734 & 0.9469 & 1.44M \\
+    C: $+$ polarity loss     & 0.9781 & 0.9779 & 0.9558 & 1.44M \\
     D: $+$ inversion (full)  & 0.9782 & 0.9780 & 0.9561 & 1.44M \\
     \bottomrule
   \end{tabular}
@@ -616,14 +615,14 @@ architecture. We return to its implications in Section~\ref{sec:discussion}.
 \paragraph{Why a field?}
 The ablation shows that the binary classifier (A, 0.9746 accuracy / 0.9745
 macro-$F_1$) and the unregularised signed field (B, 0.9752 / 0.9751) are
-nearly indistinguishable, whereas the full model (D, 0.9782 / 0.9780)
-improves by 0.3--0.4 points over both. The benefit is therefore not the
-field representation per se but what the consistency losses can do with it:
-the attention-weighted polarity score and the inversion-equivariance
-constraint shape the field's geometry, and only a full-resolution field ---
-unlike a globally pooled classifier --- has the spatial resolution to carry
-those constraints. The calibration results point the same way (D: ECE 0.031;
-A: 0.038).
+nearly indistinguishable, whereas adding the polarity-consistency loss
+(C, 0.9781 / 0.9779) gains about 0.3 points, and the inversion-consistency
+term changes nothing further (D, 0.9782 / 0.9780). The benefit is therefore
+not the field representation per se but the differentiable polarity score it
+enables: only a full-resolution signed field --- unlike a globally pooled
+classifier --- provides a differentiable link between the onset geometry and
+the decision, which is what the polarity-consistency loss shapes. The
+calibration results point the same way (C: ECE 0.031; D: 0.031; A: 0.038).
 
 \paragraph{Known-only supervision.}
 Excluding unknown-polarity records from the field loss was essential in

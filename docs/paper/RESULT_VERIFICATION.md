@@ -111,7 +111,7 @@ python scripts/evaluate_baselines.py --baselines <name> --num-workers 8
 | `outputs/paper/tables/per_source_results.csv` | 六模型逐样本预测 | ✅ 已验证 |
 | `outputs/paper/tables/baseline_protocol.csv` | 各基线 protocol.json | ✅ 已验证 |
 | `outputs/paper/tables/bootstrap.csv` | 事件级聚类配对 bootstrap | ✅ 已验证（5 组 CI 均排除 0） |
-| `outputs/paper/tables/ablation_results.csv` | G2 A/B/C/D | ✅ 已验证（C 为 e6 停，方案待定） |
+| `outputs/paper/tables/ablation_results.csv` | G2 A/B/C/D | ✅ 已验证（C 完整收敛：0.9781 / 0.9779 / 0.9558） |
 | `outputs/paper/tables/snr_all.csv`、`p_shift_all.csv` | G3 六模型鲁棒性 | ✅ 已验证 |
 | Fig 3/4（SNR/P 偏移曲线） | 同上 | ✅ 已产出 |
 | Fig 5（校准/选择性预测） | SOPNet 预测 | ✅ 已产出 |
