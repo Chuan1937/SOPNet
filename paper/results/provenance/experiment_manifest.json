@@ -1,0 +1,435 @@
+{
+  "schema_version": "1.0",
+  "generated_at_utc": "2026-10-20T13:31:45Z",
+  "source_commit": "1188a68f10dda6b9c10a0cba8316790818a7466f",
+  "publication_commit": null,
+  "repository": "https://github.com/Chuan1937/SOPNet",
+  "experiment": {
+    "name": "SOPNet six-model benchmark, ablation and robustness results",
+    "dates": {
+      "cfm_checkpoint": "2026-10-07",
+      "sopnet_training": "2026-10-08",
+      "baseline_retraining": "2026-10-08/2026-10-09",
+      "ablation_training": "2026-10-09/2026-10-10",
+      "robustness_evaluation": "2026-10-09",
+      "paper_tables": "2026-10-09/2026-10-10"
+    },
+    "random_seeds": {
+      "training": 36,
+      "ablation": 36,
+      "data_split": 20261004,
+      "robustness_subset": 20261004,
+      "bootstrap": 20261004
+    },
+    "test_split": {
+      "n": 777720,
+      "n_known_ud": 327231,
+      "n_events": 111588,
+      "source_known_ud": {
+        "scsn": 253194,
+        "diting": 64048,
+        "pnw": 9742,
+        "txed": 143,
+        "instance": 104
+      }
+    },
+    "robustness_subset": {
+      "split": "test",
+      "n": 30000,
+      "n_known_ud": 12520,
+      "seed": 20261004
+    },
+    "noise": {
+      "levels_db": [
+        "clean",
+        20,
+        10,
+        5,
+        0,
+        -5
+      ],
+      "implementation": "additive white Gaussian noise applied to every waveform at a fixed SNR"
+    },
+    "p_shift": {
+      "grid_seconds": [
+        -0.2,
+        -0.1,
+        -0.05,
+        -0.03,
+        -0.02,
+        -0.01,
+        0.0,
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.1,
+        0.2
+      ],
+      "grid_ms": [
+        -200,
+        -100,
+        -50,
+        -30,
+        -20,
+        -10,
+        0,
+        10,
+        20,
+        30,
+        50,
+        100,
+        200
+      ],
+      "note": "13-point fine grid; it is a superset of the original coarse grid."
+    },
+    "metric": "Strict U/D accuracy on labelled known samples, using the sign of each model own U/D score (threshold 0 for the robustness tables). Unknown predictions are errors in the main strict U/D metrics.",
+    "input_windows": {
+      "sopnet": 400,
+      "baselines": 600
+    },
+    "timezone": "Asia/Shanghai (UTC+8)"
+  },
+  "models": [
+    {
+      "key": "sopnet",
+      "display_name": "SOPNet",
+      "role": "proposed model (final recipe)",
+      "checkpoint": "outputs/runs/sopnet_nojitter_36/best.pt",
+      "checkpoint_sha256": "2c5b2c2687441e902b9f736bc77d8e2d1d9540a55bdf20a64ba94d29fe369242",
+      "checkpoint_bytes": 17469805,
+      "seed": 36,
+      "best_epoch": 43,
+      "epochs_run": 50,
+      "parameters": 1440417,
+      "input_length": 400,
+      "robustness_window_length": 400,
+      "checkpoint_date_local": "2026-10-08"
+    },
+    {
+      "key": "ross",
+      "display_name": "Ross",
+      "role": "baseline",
+      "checkpoint": "outputs/runs/baseline_ross/best.pt",
+      "checkpoint_sha256": "0d14412cc12de571b5e6b2655b4a7fe7cb9d5b1b15697595393b85999bc6b355",
+      "checkpoint_bytes": 14684460,
+      "seed": 36,
+      "best_epoch": 15,
+      "epochs_run": 21,
+      "parameters": 3665731,
+      "input_length": 400,
+      "robustness_window_length": 600,
+      "checkpoint_date_local": "2026-10-09"
+    },
+    {
+      "key": "rpnet",
+      "display_name": "RPNet",
+      "role": "baseline",
+      "checkpoint": "outputs/runs/baseline_rpnet/best.pt",
+      "checkpoint_sha256": "ec5f389dcfb0addfe46e1ff4e7c82a3c9708408ec234e5bb1a3510718c229cb3",
+      "checkpoint_bytes": 24188408,
+      "seed": 36,
+      "best_epoch": 39,
+      "epochs_run": 45,
+      "parameters": 6044338,
+      "input_length": 400,
+      "robustness_window_length": 600,
+      "checkpoint_date_local": "2026-10-09"
+    },
+    {
+      "key": "eqpolarity",
+      "display_name": "EQPolarity",
+      "role": "baseline",
+      "checkpoint": "outputs/runs/baseline_eqpolarity/best.pt",
+      "checkpoint_sha256": "1454122cc5927c4d02b2370211cd270ca703e47bf953d621c6f7a45d4d3983ca",
+      "checkpoint_bytes": 4658874,
+      "seed": 36,
+      "best_epoch": 5,
+      "epochs_run": 5,
+      "parameters": 1159601,
+      "input_length": 600,
+      "robustness_window_length": 600,
+      "note": "protocol.csv records epochs_run=5 and best_epoch=5.",
+      "checkpoint_date_local": "2026-10-09"
+    },
+    {
+      "key": "cfm",
+      "display_name": "CFM",
+      "role": "baseline (legacy checkpoint re-evaluated under strict protocol)",
+      "checkpoint": "outputs/runs/baseline_cfm/best.pt",
+      "checkpoint_sha256": "63e974cd60ee24b562d6362dfb9fa1ddbfe64d1ac15febc9f1533fd6a118d470",
+      "checkpoint_bytes": 1648438,
+      "seed": 36,
+      "best_epoch": 48,
+      "epochs_run": null,
+      "parameters": 410981,
+      "input_length": 160,
+      "robustness_window_length": 600,
+      "note": "Checkpoint predates the unified retraining round; evaluated with the same strict U/D protocol and test split.",
+      "checkpoint_date_local": "2026-10-07"
+    },
+    {
+      "key": "diting_motion",
+      "display_name": "DiTingMotion",
+      "role": "baseline",
+      "checkpoint": "outputs/runs/baseline_diting_motion/best.pt",
+      "checkpoint_sha256": "521fde437304f6c149a30807ec1a8e6596585de854a9a385a6ffd98dcba41d7b",
+      "checkpoint_bytes": 162804,
+      "seed": 36,
+      "best_epoch": 47,
+      "epochs_run": 50,
+      "parameters": 30146,
+      "input_length": 128,
+      "robustness_window_length": 600,
+      "checkpoint_date_local": "2026-10-09"
+    }
+  ],
+  "ablation": [
+    {
+      "experiment": "A_cls_ud",
+      "checkpoint": "outputs/ablation/A_cls_ud/best.pt",
+      "checkpoint_sha256": "d8c22fd20760b1fd5424802dda702022768ca8262174419d358b9c32ccaa027e",
+      "checkpoint_bytes": 14883441,
+      "seed": 36,
+      "note": "Stopped before the 50-epoch schedule completed; run metadata does not record completed epochs. The published row uses the best-validation checkpoint on disk (2026-10-09).",
+      "configured_epochs": 50,
+      "epochs_run": null,
+      "best_epoch": null
+    },
+    {
+      "experiment": "B_field",
+      "checkpoint": "outputs/ablation/B_field/best.pt",
+      "checkpoint_sha256": "df815d83368cd869cc30a495621feae5ab96dba5adb0b0865464470df0cddb9b",
+      "checkpoint_bytes": 17448685,
+      "seed": 36,
+      "note": "Stopped before the 50-epoch schedule completed; run metadata does not record completed epochs. The published row uses the best-validation checkpoint on disk (2026-10-09).",
+      "configured_epochs": 50,
+      "epochs_run": null,
+      "best_epoch": null
+    },
+    {
+      "experiment": "C_polarity",
+      "checkpoint": "outputs/ablation/C_polarity/best.pt",
+      "checkpoint_sha256": "3d88d700b8621886eec79425c9e1f36c652bfcbff976d7b9c92f6492d0e62ea5",
+      "checkpoint_bytes": 17473517,
+      "seed": 36,
+      "note": "Resumed from epoch 6 and completed the full 50-epoch schedule; best epoch 49.",
+      "configured_epochs": 50,
+      "epochs_run": 50,
+      "best_epoch": 49
+    },
+    {
+      "experiment": "D_full",
+      "checkpoint": "outputs/runs/sopnet_nojitter_36/best.pt",
+      "checkpoint_sha256": "2c5b2c2687441e902b9f736bc77d8e2d1d9540a55bdf20a64ba94d29fe369242",
+      "checkpoint_bytes": 17469805,
+      "seed": 36,
+      "note": "Reuses the final SOPNet checkpoint (best epoch 43, 50 epochs).",
+      "configured_epochs": 50,
+      "epochs_run": 50,
+      "best_epoch": 43
+    }
+  ],
+  "tables": [
+    {
+      "name": "main_results.csv",
+      "path": "paper/results/tables/main_results.csv",
+      "sha256": "ee99434f86e8af793c1f7df41e97c05d25fb4089be417f4c1bc5ac217197dfce",
+      "bytes": 835,
+      "rows": 6,
+      "columns": [
+        "model",
+        "accuracy",
+        "macro_f1",
+        "precision",
+        "recall",
+        "mcc",
+        "n_known",
+        "n",
+        "unknown_rate"
+      ]
+    },
+    {
+      "name": "per_source_results.csv",
+      "path": "paper/results/tables/per_source_results.csv",
+      "sha256": "7bd19250bac4e6f48a62be123459cd9e837ce248636275f5b345f4485e76fe5c",
+      "bytes": 2308,
+      "rows": 30,
+      "columns": [
+        "model",
+        "source",
+        "n_known",
+        "accuracy",
+        "macro_f1",
+        "mcc"
+      ]
+    },
+    {
+      "name": "baseline_protocol.csv",
+      "path": "paper/results/tables/baseline_protocol.csv",
+      "sha256": "f4304383b11495bcf344f19bc78b9b7ccf0f38f5aad7849ca0980f79004aefea",
+      "bytes": 1427,
+      "rows": 6,
+      "columns": [
+        "name",
+        "factory",
+        "input_length",
+        "input_channels",
+        "output",
+        "derivative",
+        "window_length",
+        "epochs",
+        "epochs_run",
+        "best_epoch",
+        "batch_size",
+        "seed",
+        "parameters",
+        "checkpoint",
+        "predictions",
+        "model",
+        "note"
+      ]
+    },
+    {
+      "name": "ablation_results.csv",
+      "path": "paper/results/tables/ablation_results.csv",
+      "sha256": "a8aa41389de142ec0e0602d9e3fb548d51f557c1e4714c0348e5b193e0906f7d",
+      "bytes": 499,
+      "rows": 4,
+      "columns": [
+        "experiment",
+        "accuracy",
+        "macro_f1",
+        "precision",
+        "recall",
+        "mcc",
+        "n_known"
+      ]
+    },
+    {
+      "name": "bootstrap.csv",
+      "path": "paper/results/tables/bootstrap.csv",
+      "sha256": "e23ddb3afcd9ff8722d14479502587c3c1ac845c043aaa02365e52ad1cfd95e3",
+      "bytes": 748,
+      "rows": 5,
+      "columns": [
+        "baseline",
+        "sopnet_macro_f1",
+        "baseline_macro_f1",
+        "delta",
+        "ci_low",
+        "ci_high",
+        "n_resamples",
+        "confidence",
+        "p_improvement",
+        "n_groups"
+      ]
+    },
+    {
+      "name": "snr_all.csv",
+      "path": "paper/results/tables/snr_all.csv",
+      "sha256": "ba1e62bbed749f10e6ada2d375815b4fc615191cb1299865e083657627aacb1d",
+      "bytes": 5241,
+      "rows": 36,
+      "columns": [
+        "model",
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "mcc",
+        "support",
+        "macro_f1_ud",
+        "n",
+        "n_known",
+        "snr_db"
+      ]
+    },
+    {
+      "name": "p_shift_all.csv",
+      "path": "paper/results/tables/p_shift_all.csv",
+      "sha256": "bdb84cab1f2850064ee365f256585b940e0b554974b95c91cfb916f42e3ed6c6",
+      "bytes": 11403,
+      "rows": 78,
+      "columns": [
+        "model",
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "mcc",
+        "support",
+        "macro_f1_ud",
+        "n",
+        "n_known",
+        "shift_seconds"
+      ]
+    }
+  ],
+  "figures": [
+    {
+      "format": "pdf",
+      "path": "paper/results/figures/robustness_heatmaps.pdf",
+      "sha256": "4e4df339855662ca7c8fcfb5b6486fae504562507b8a2d66f53271b1132fb4fa",
+      "bytes": 24886
+    },
+    {
+      "format": "svg",
+      "path": "paper/results/figures/robustness_heatmaps.svg",
+      "sha256": "7b69fb8b3efaf260e63635f7c5228720b35c1d20dfee37fc852255ca116cfd4d",
+      "bytes": 133452
+    },
+    {
+      "format": "png",
+      "path": "paper/results/figures/robustness_heatmaps.png",
+      "sha256": "dd67aed35bba18291486979c1b658dafac975a395059b73622e65c606548181c",
+      "bytes": 864314
+    }
+  ],
+  "figure_recipe": {
+    "script": "scripts/plot_paper_robustness_heatmaps.py",
+    "width_cm": 17.0,
+    "dpi": 600,
+    "formats": [
+      "pdf",
+      "svg",
+      "png"
+    ],
+    "font": "Nimbus Roman (Times New Roman metric-compatible); fallbacks: Times New Roman, DejaVu Serif",
+    "colour_scale_percent": [
+      40,
+      100
+    ],
+    "annotation": "strict U/D accuracy in percent, one decimal; missing cells are NA"
+  },
+  "commands": {
+    "main_tables": "python scripts/make_main_table.py --cache-dir outputs/cache_v1 --predictions-dir outputs/paper/predictions --output-dir outputs/paper/tables",
+    "bootstrap": "python scripts/run_bootstrap.py --checkpoint outputs/runs/sopnet_nojitter_36/best.pt --baselines cfm rpnet ross eqpolarity diting_motion --cache-dir outputs/cache_v1 --n-resamples 1000 --output-csv outputs/paper/tables/bootstrap.csv",
+    "robustness_noise": "python scripts/run_robustness.py --noise --cache-dir outputs/cache_v1 --output-dir outputs/paper --subset-size 30000 --subset-seed 20261004 --models sopnet=outputs/runs/sopnet_nojitter_36/best.pt ross=outputs/runs/baseline_ross/best.pt rpnet=outputs/runs/baseline_rpnet/best.pt eqpolarity=outputs/runs/baseline_eqpolarity/best.pt cfm=outputs/runs/baseline_cfm/best.pt diting_motion=outputs/runs/baseline_diting_motion/best.pt",
+    "robustness_p_shift_fine": "python scripts/run_robustness.py --p-shift --p-shifts 0.0 -0.01 0.01 -0.02 0.02 -0.03 0.03 -0.05 0.05 -0.10 0.10 -0.20 0.20 --cache-dir outputs/cache_v1 --output-dir outputs/paper --subset-size 30000 --subset-seed 20261004 --models sopnet=outputs/runs/sopnet_nojitter_36/best.pt ross=outputs/runs/baseline_ross/best.pt rpnet=outputs/runs/baseline_rpnet/best.pt eqpolarity=outputs/runs/baseline_eqpolarity/best.pt cfm=outputs/runs/baseline_cfm/best.pt diting_motion=outputs/runs/baseline_diting_motion/best.pt",
+    "heatmaps": "python scripts/plot_paper_robustness_heatmaps.py --snr paper/results/tables/snr_all.csv --p-shift paper/results/tables/p_shift_all.csv --output-dir paper/results/figures",
+    "verification": "python -m pytest tests/test_paper_results.py -q && ruff check scripts/plot_paper_robustness_heatmaps.py tests/test_paper_results.py",
+    "checksums": "sha256sum paper/results/tables/*.csv paper/results/figures/robustness_heatmaps.*"
+  },
+  "scope": {
+    "included": [
+      "aggregate metrics",
+      "publication figures",
+      "provenance metadata"
+    ],
+    "excluded": [
+      "raw waveforms",
+      "model weights",
+      "credentials",
+      "restricted dataset content"
+    ]
+  },
+  "notes": [
+    "Full regeneration requires the local cache (outputs/cache_v1) and model checkpoints; those artifacts are not published.",
+    "baseline_protocol.csv preserves the recorded training metadata. CFM was re-evaluated from a legacy checkpoint and has no recorded epoch count in protocol.json; SOPNet is the proposed model rather than a baseline.",
+    "EQPolarity protocol records epochs_run=5 and best_epoch=5; no further interpretation is attached here.",
+    "The ablation C row is the fully converged resumed run (best epoch 49, 50 epochs total), not the earlier under-trained checkpoint.",
+    "Robustness numbers use one fixed 30,000-record test subset (12,520 known U/D) and do not include confidence intervals; no error bars are drawn.",
+    "Ablation A/B stopped before the 50-epoch schedule completed and their run metadata does not record completed epochs; C was resumed to 50 epochs and D reuses the final SOPNet checkpoint. A/B absolute scores should therefore be read as not fully converged, and A/B-vs-C/D gaps cannot be attributed solely to the loss terms."
+  ]
+}

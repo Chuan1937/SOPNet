@@ -112,7 +112,7 @@ python scripts/evaluate_baselines.py --baselines <name> --num-workers 8
 | `outputs/paper/tables/baseline_protocol.csv` | 各基线 protocol.json | ✅ 已验证 |
 | `outputs/paper/tables/bootstrap.csv` | 事件级聚类配对 bootstrap | ✅ 已验证（5 组 CI 均排除 0） |
 | `outputs/paper/tables/ablation_results.csv` | G2 A/B/C/D | ✅ 已验证（C 完整收敛：0.9781 / 0.9779 / 0.9558） |
-| `outputs/paper/tables/snr_all.csv`、`p_shift_all.csv` | G3 六模型鲁棒性 | ✅ 已验证 |
+| `outputs/paper/tables/snr_all.csv`、`p_shift_all.csv` | G3 六模型鲁棒性（含 13 点 P 偏移细网格） | ✅ 已验证 |
 | Fig 3/4（SNR/P 偏移曲线） | 同上 | ✅ 已产出 |
 | Fig 5（校准/选择性预测） | SOPNet 预测 | ✅ 已产出 |
 
@@ -123,3 +123,64 @@ python scripts/evaluate_baselines.py --baselines <name> --num-workers 8
    `outputs/retired/`。
 3. 任何重算若与已记录数字不一致，以重算为准并在此更新，同时检查
    `docs/paper/EXPERIMENT_LOG.md` 是否记录了原因。
+
+---
+
+## 论文结果发布路径（paper/results/，2026-10-20）
+
+最终可发布汇总已整理到 `paper/results/`，作为 GitHub `main` 上的正式结果包：
+
+```text
+paper/results/
+├── README.md
+├── tables/{main_results,per_source_results,baseline_protocol,
+│           ablation_results,bootstrap,snr_all,p_shift_all}.csv
+├── figures/robustness_heatmaps.{pdf,svg,png}
+└── provenance/experiment_manifest.json
+```
+
+- `tables/*.csv` 是 `outputs/paper/tables/` 对应文件的逐字节副本；七份文件的
+  行数、字段和 SHA-256 记录在 `experiment_manifest.json`。
+- P 偏移细网格（±10/20/30 ms 与 ±50/100/200 ms，共 13 点）已合并在
+  `p_shift_all.csv`；没有单独的旧粗网格文件，原始细网格结果未被覆盖。
+- 消融表使用 C 组续训终版（best epoch 49 / 50 轮），不是早期欠训练的
+  0.9736 版本。
+- A/B 消融在 50 轮调度完成前停止，运行元数据未记录实际完成轮次；其
+  checkpoint 为磁盘上的 best-validation checkpoint。该限制已写入
+  `paper/results/README.md` 与 manifest，不将 A/B 的绝对值宣称为完全收敛。
+
+### 数据一致性核验（2026-10-20）
+
+| 检查项 | 结果 |
+|---|---|
+| 七份 CSV 可读、必需字段存在、比率范围合法 | ✅ |
+| 六模型 × 6 SNR 档：每模型每档恰一条记录（36 行） | ✅ |
+| 六模型 × 13 P 偏移点：每模型每点恰一条记录（78 行） | ✅ |
+| Clean 与零偏移严格准确率逐模型一致（最大绝对差） | ✅ 0.0 |
+| 主表 n / n_known | ✅ 777,720 / 327,231 |
+| 逐源 n_known 之和（每模型） | ✅ 327,231 |
+| D 行与主表 SOPNet 行一致 | ✅ |
+| C 行使用续训终版（0.9781 / 0.9779 / 0.9558） | ✅ |
+| 图中每格与 CSV 对应行逐值一致 | ✅ `test_heatmap_values_are_traceable_to_csv` |
+| manifest 中各 CSV / 图件 SHA-256 与字节数 | ✅ `test_manifest_hashes_and_metadata` |
+| 无绝对路径、波形、权重或凭据进入结果包 | ✅ |
+
+复现命令：
+
+```bash
+python scripts/plot_paper_robustness_heatmaps.py \
+  --snr paper/results/tables/snr_all.csv \
+  --p-shift paper/results/tables/p_shift_all.csv \
+  --output-dir paper/results/figures
+
+python -m pytest tests/test_paper_results.py -q
+ruff check scripts/plot_paper_robustness_heatmaps.py tests/test_paper_results.py
+sha256sum paper/results/tables/*.csv paper/results/figures/robustness_heatmaps.*
+```
+
+图件规格：17.0 cm 宽、白底、Nimbus Roman（Times New Roman 度量兼容）9–10 pt、
+两面板共享 40–100% 色标、低饱和蓝绿色带、缺失值标 NA、无无依据误差棒；
+输出 PDF/SVG/PNG（PNG 600 dpi）。PDF 已确认嵌入 Nimbus Roman Type0 子集。
+
+发布提交：结果包提交后，`experiment_manifest.json` 的
+`publication_commit` 字段记录对应提交 SHA。

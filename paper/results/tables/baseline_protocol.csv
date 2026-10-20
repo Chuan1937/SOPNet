@@ -1,0 +1,7 @@
+name,factory,input_length,input_channels,output,derivative,window_length,epochs,epochs_run,best_epoch,batch_size,seed,parameters,checkpoint,predictions,model,note
+ross,SCSN,400,1,three_class,False,600,50.0,21.0,15.0,512.0,36.0,3665731,outputs/runs/baseline_ross/best.pt,"{'val': 'outputs/paper/predictions/ross_val.npz', 'test': 'outputs/paper/predictions/ross_test.npz'}",Ross,
+diting_motion,DitingMotion,128,2,three_class,True,600,50.0,50.0,47.0,1024.0,36.0,30146,outputs/runs/baseline_diting_motion/best.pt,"{'val': 'outputs/paper/predictions/diting_motion_val.npz', 'test': 'outputs/paper/predictions/diting_motion_test.npz'}",DiTingMotion,
+rpnet,RPNet,400,1,binary_du,False,600,50.0,45.0,39.0,512.0,36.0,6044338,outputs/runs/baseline_rpnet/best.pt,"{'val': 'outputs/paper/predictions/rpnet_val.npz', 'test': 'outputs/paper/predictions/rpnet_test.npz'}",RPNet,
+eqpolarity,EQPolarityCCT,600,1,binary_ud,False,600,50.0,5.0,5.0,512.0,36.0,1159601,outputs/runs/baseline_eqpolarity/best.pt,"{'val': 'outputs/paper/predictions/eqpolarity_val.npz', 'test': 'outputs/paper/predictions/eqpolarity_test.npz'}",EQPolarity,trained on the unified split; strict U/D evaluation
+cfm,CFM,160,1,binary_ud,False,600,,,,,,410981,outputs/runs/baseline_cfm/best.pt,,CFM,re-evaluated with the strict U/D protocol; training config in config.json
+,,400,1,signed field,False,400,,50.0,43.0,,,1440417,outputs/runs/sopnet_nojitter_36/best.pt,,SOPNet,
