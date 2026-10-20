@@ -182,5 +182,5 @@ sha256sum paper/results/tables/*.csv paper/results/figures/robustness_heatmaps.*
 两面板共享 40–100% 色标、低饱和蓝绿色带、缺失值标 NA、无无依据误差棒；
 输出 PDF/SVG/PNG（PNG 600 dpi）。PDF 已确认嵌入 Nimbus Roman Type0 子集。
 
-发布提交：结果包提交后，`experiment_manifest.json` 的
-`publication_commit` 字段记录对应提交 SHA。
+发布提交：`e3476bd09d062ac3d30b3789d08d657bf9befd41`（结果包首次发布）；
+`experiment_manifest.json` 的 `publication_commit` 字段记录该提交 SHA。

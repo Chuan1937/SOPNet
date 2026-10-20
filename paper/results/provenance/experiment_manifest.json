@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "generated_at_utc": "2026-10-20T13:31:45Z",
   "source_commit": "1188a68f10dda6b9c10a0cba8316790818a7466f",
-  "publication_commit": null,
+  "publication_commit": "e3476bd09d062ac3d30b3789d08d657bf9befd41",
   "repository": "https://github.com/Chuan1937/SOPNet",
   "experiment": {
     "name": "SOPNet six-model benchmark, ablation and robustness results",
